@@ -1,0 +1,89 @@
+{% extends "recruitment/base.html" %}
+
+{% block title %}Dashboard | TalentFlow{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <p class="section-kicker mb-1">Hiring visibility</p>
+        <h1 class="page-title mb-1">Dashboard</h1>
+        <p class="text-secondary mb-0">{{ scope_label }}</p>
+    </div>
+    {% if can_manage_recruitment %}
+        <a class="btn btn-soft" href="{% url 'recruitment:candidate_list' %}">Candidates</a>
+    {% else %}
+        <a class="btn btn-soft" href="{% url 'recruitment:job_opening_list' %}">Jobs</a>
+    {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="metric-card metric-candidates">
+            <div class="text-secondary small">Candidates</div>
+            <div class="fs-3 fw-semibold">{{ summary.candidate_count }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card metric-interviews">
+            <div class="text-secondary small">Interviews this week</div>
+            <div class="fs-3 fw-semibold">{{ summary.interviews_this_week }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card metric-offers">
+            <div class="text-secondary small">Offers sent</div>
+            <div class="fs-3 fw-semibold">{{ summary.offers_sent }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card metric-hired">
+            <div class="text-secondary small">Hired</div>
+            <div class="fs-3 fw-semibold">{{ summary.hired_count }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="surface p-4 h-100">
+            <h2 class="h5 mb-3">Pipeline</h2>
+            {% for row in status_rows %}
+                <div class="mini-row">
+                    <span class="status-badge status-{{ row.status }}">{{ row.status|title }}</span>
+                    <span class="fw-semibold">{{ row.total }}</span>
+                </div>
+            {% empty %}
+                <p class="text-secondary mb-0">No candidate data yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="surface p-4 h-100">
+            <h2 class="h5 mb-3">Roles with most candidates</h2>
+            {% for role in hardest_roles %}
+                <div class="mini-row">
+                    <span>{{ role.position_applied_for }}</span>
+                    <span class="fw-semibold">{{ role.total }}</span>
+                </div>
+            {% empty %}
+                <p class="text-secondary mb-0">No roles yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="surface p-4 h-100">
+            <h2 class="h5 mb-3">Upcoming interviews</h2>
+            {% for interview in upcoming_interviews %}
+                <div class="border-bottom py-2">
+                    <div class="fw-semibold">{{ interview.title }}</div>
+                    <div class="small text-secondary">{{ interview.candidate.full_name }} · {{ interview.scheduled_at }}</div>
+                </div>
+            {% empty %}
+                <p class="text-secondary mb-0">No interviews scheduled.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "recruitment/base.html" %}
+
+{% block title %}{{ title }} | TalentFlow{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="page-header d-flex align-items-center justify-content-between gap-3 mb-4">
+            <div>
+                <p class="section-kicker mb-1">Candidate record</p>
+                <h1 class="page-title mb-1">{{ title }}</h1>
+                <p class="text-secondary mb-0">Keep candidate information structured from day one.</p>
+            </div>
+            <a class="btn btn-soft" href="{% url 'recruitment:candidate_list' %}">Back</a>
+        </div>
+
+        <form method="post" class="surface p-4">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="row g-3">
+                {% for field in form %}
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}
+                            <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <a class="btn btn-soft" href="{% url 'recruitment:candidate_list' %}">Cancel</a>
+                <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

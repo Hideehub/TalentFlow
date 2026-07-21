@@ -1,0 +1,125 @@
+{% extends "recruitment/base.html" %}
+
+{% block title %}{{ candidate.full_name }} | TalentFlow{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <p class="section-kicker mb-1">Candidate profile</p>
+        <h1 class="page-title mb-1">{{ candidate.full_name }}</h1>
+        <p class="text-secondary mb-0">{{ candidate.position_applied_for }}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-soft" href="{% url 'recruitment:candidate_list' %}">Back</a>
+        <a class="btn btn-primary" href="{% url 'recruitment:candidate_update' candidate.id %}">Edit</a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="surface p-4">
+            <h2 class="h5 mb-3">Candidate information</h2>
+            <dl class="row mb-0">
+                <dt class="col-sm-4 text-secondary">Email</dt>
+                <dd class="col-sm-8">{{ candidate.email }}</dd>
+
+                <dt class="col-sm-4 text-secondary">Phone</dt>
+                <dd class="col-sm-8">{{ candidate.phone }}</dd>
+
+                <dt class="col-sm-4 text-secondary">Experience</dt>
+                <dd class="col-sm-8">{{ candidate.years_of_experience }} year{{ candidate.years_of_experience|pluralize }}</dd>
+
+                <dt class="col-sm-4 text-secondary">Owner</dt>
+                <dd class="col-sm-8">
+                    {% if candidate.assigned_recruiter %}
+                        {{ candidate.assigned_recruiter.get_full_name|default:candidate.assigned_recruiter.username }}
+                    {% else %}
+                        Unassigned
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4 text-secondary">Date applied</dt>
+                <dd class="col-sm-8">{{ candidate.date_applied }}</dd>
+
+                <dt class="col-sm-4 text-secondary">Added</dt>
+                <dd class="col-sm-8">{{ candidate.created_at }}</dd>
+            </dl>
+        </div>
+
+        <div class="surface p-4 mt-4">
+            <h2 class="h5 mb-3">Notes</h2>
+            <form method="post" action="{% url 'recruitment:candidate_note_create' candidate.id %}" class="mb-4">
+                {% csrf_token %}
+                <label class="form-label" for="{{ note_form.note.id_for_label }}">Add note</label>
+                {{ note_form.note }}
+                <button class="btn btn-primary mt-3" type="submit">Save note</button>
+            </form>
+
+            {% for note in notes %}
+                <div class="timeline-item">
+                    <div class="small text-secondary mb-1">{{ note.created_at }}</div>
+                    <p class="mb-0">{{ note.note }}</p>
+                </div>
+            {% empty %}
+                <p class="text-secondary mb-0">No notes yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="surface p-4">
+            <h2 class="h5 mb-3">Pipeline status</h2>
+            <p class="mb-3">
+                <span class="status-badge status-{{ candidate.status }}">{{ candidate.get_status_display }}</span>
+            </p>
+            <form method="post" action="{% url 'recruitment:candidate_status_update' candidate.id %}">
+                {% csrf_token %}
+                <label class="form-label" for="{{ status_form.status.id_for_label }}">Update status</label>
+                {{ status_form.status }}
+                <button class="btn btn-primary w-100 mt-3" type="submit">Save status</button>
+            </form>
+        </div>
+
+        <div class="surface p-4 mt-4">
+            <h2 class="h5 mb-3">Schedule interview</h2>
+            <form method="post" action="{% url 'recruitment:interview_create' candidate.id %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label" for="{{ interview_form.title.id_for_label }}">Title</label>
+                    {{ interview_form.title }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="{{ interview_form.scheduled_at.id_for_label }}">Date and time</label>
+                    {{ interview_form.scheduled_at }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="{{ interview_form.location.id_for_label }}">Location</label>
+                    {{ interview_form.location }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="{{ interview_form.interviewer.id_for_label }}">Interviewer</label>
+                    {{ interview_form.interviewer }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="{{ interview_form.notes.id_for_label }}">Notes</label>
+                    {{ interview_form.notes }}
+                </div>
+                <button class="btn btn-primary w-100" type="submit">Schedule</button>
+            </form>
+        </div>
+
+        <div class="surface p-4 mt-4">
+            <h2 class="h5 mb-3">Interviews</h2>
+            {% for interview in interviews %}
+                <div class="timeline-item">
+                    <div class="fw-semibold">{{ interview.title }}</div>
+                    <div class="small text-secondary">{{ interview.scheduled_at }}</div>
+                    <div class="small">{{ interview.get_status_display }}</div>
+                </div>
+            {% empty %}
+                <p class="text-secondary mb-0">No interviews scheduled.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "recruitment/base.html" %}
+
+{% block title %}Import candidates | TalentFlow{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <p class="section-kicker mb-1">Historical records</p>
+        <h1 class="page-title mb-1">Import candidates</h1>
+        <p class="text-secondary mb-0">Preview and validate old Excel records before adding them to TalentFlow.</p>
+    </div>
+    <a class="btn btn-soft" href="{% url 'recruitment:candidate_list' %}">Candidates</a>
+</div>
+
+<div class="surface p-4 mb-4">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <label class="form-label" for="{{ form.file.id_for_label }}">{{ form.file.label }}</label>
+        {{ form.file }}
+        {% if form.file.help_text %}<div class="form-text">{{ form.file.help_text }}</div>{% endif %}
+        {% if form.file.errors %}<div class="text-danger small mt-2">{{ form.file.errors|striptags }}</div>{% endif %}
+        <button class="btn btn-primary mt-3" type="submit">Preview file</button>
+    </form>
+</div>
+
+{% if preview %}
+    <div class="d-flex flex-wrap gap-3 mb-3">
+        <span class="badge text-bg-secondary">Sheet: {{ preview.sheet_name }}</span>
+        <span class="badge text-bg-primary">Rows: {{ preview.total_rows }}</span>
+        <span class="badge text-bg-success">Valid: {{ preview.valid_rows }}</span>
+        <span class="badge text-bg-danger">Invalid: {{ preview.invalid_rows }}</span>
+    </div>
+
+    <div class="surface overflow-hidden">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Row</th>
+                        <th>Candidate</th>
+                        <th>Phone</th>
+                        <th>Position</th>
+                        <th>Experience</th>
+                        <th>Status</th>
+                        <th>Validation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in preview.rows %}
+                        <tr class="{% if not row.is_valid %}table-danger{% endif %}">
+                            <td>{{ row.row_number }}</td>
+                            <td>
+                                <div class="fw-semibold">{{ row.full_name|default:"Missing name" }}</div>
+                                <div class="small text-secondary">{{ row.email|default:"Missing email" }}</div>
+                            </td>
+                            <td>{{ row.phone }}</td>
+                            <td>{{ row.position_applied_for }}</td>
+                            <td>{{ row.years_of_experience }}</td>
+                            <td>{{ row.status|title }}</td>
+                            <td>
+                                {% if row.is_valid %}
+                                    <span class="badge text-bg-success">Ready</span>
+                                {% else %}
+                                    {% for error in row.errors %}
+                                        <div class="small text-danger">{{ error }}</div>
+                                    {% endfor %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center justify-content-between gap-3 mt-3">
+        <p class="text-secondary mb-0">Only valid rows will be imported.</p>
+        <form method="post" action="{% url 'uploads:candidate_import_confirm' %}">
+            {% csrf_token %}
+            <button class="btn btn-success" type="submit" {% if preview.valid_rows == 0 %}disabled{% endif %}>
+                Import {{ preview.valid_rows }} candidate{{ preview.valid_rows|pluralize }}
+            </button>
+        </form>
+    </div>
+{% endif %}
+{% endblock %}

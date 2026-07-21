@@ -1,0 +1,45 @@
+{% extends "recruitment/base.html" %}
+
+{% block title %}{{ title }} | TalentFlow{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-9">
+        <div class="page-header d-flex align-items-center justify-content-between gap-3 mb-4">
+            <div>
+                <p class="section-kicker mb-1">Vacancy management</p>
+                <h1 class="page-title mb-1">{{ title }}</h1>
+                <p class="text-secondary mb-0">Define the role recruiters will hire against.</p>
+            </div>
+            <a class="btn btn-soft" href="{% url 'recruitment:job_opening_list' %}">Back</a>
+        </div>
+
+        <form method="post" class="surface p-4">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="row g-3">
+                {% for field in form %}
+                    <div class="{% if field.name == 'description' %}col-12{% else %}col-md-6{% endif %}">
+                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                        {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors|striptags }}</div>{% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <a class="btn btn-soft" href="{% url 'recruitment:job_opening_list' %}">Cancel</a>
+                {% if show_draft_action %}
+                    <button class="btn btn-soft" name="job_status" value="draft" type="submit">Save draft</button>
+                {% endif %}
+                <button class="btn btn-primary" name="job_status" value="open" type="submit">{{ submit_label }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

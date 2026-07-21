@@ -1,0 +1,145 @@
+<!doctype html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TalentFlow | Hiring made clearer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{% static 'recruitment/css/app.css' %}" rel="stylesheet">
+</head>
+<body class="landing-body">
+    <header class="landing-nav">
+        <a class="app-brand landing-brand" href="{% url 'landing' %}" aria-label="TalentFlow home">
+            <span class="brand-mark landing-mark">TF</span>
+            <span>
+                <span class="brand-name">TalentFlow</span>
+                <span class="brand-subtitle">Hiring workspace</span>
+            </span>
+        </a>
+        <nav class="landing-actions" aria-label="Landing navigation">
+            {% if request.user.is_authenticated %}
+                <a class="landing-user-chip" href="{% url 'dashboard:home' %}">
+                    <span class="topbar-avatar">{{ request.user.get_full_name|default:request.user.username|slice:":1"|upper }}</span>
+                    <span>{{ request.user.get_full_name|default:request.user.username }}</span>
+                </a>
+            {% else %}
+                <a class="btn btn-soft" href="{% url 'accounts:login' %}">Staff login</a>
+                <a class="btn btn-primary" href="{% url 'accounts:signup' %}">Staff sign up</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <main>
+        <section class="landing-hero-image" style="background-image: linear-gradient(90deg, rgba(237, 245, 241, 0.98) 0%, rgba(237, 245, 241, 0.9) 38%, rgba(237, 245, 241, 0.24) 70%), url('{% static "core/img/landing-hero-v2.png" %}');">
+            <div class="landing-copy">
+                <p class="section-kicker mb-2">TalentFlow hiring workspace</p>
+                <h1>A calmer way to manage hiring.</h1>
+                <p>
+                    TalentFlow helps recruitment teams organize open roles, candidate records,
+                    interviews, and hiring decisions without making the process feel heavy.
+                </p>
+                <div class="landing-cta">
+                    <a class="btn btn-primary" href="#open-roles">View open roles</a>
+                    {% if request.user.is_authenticated %}
+                        <a class="btn btn-outline-primary" href="{% url 'dashboard:home' %}">Open workspace</a>
+                    {% else %}
+                        <a class="btn btn-outline-primary" href="{% url 'accounts:login' %}">Staff access</a>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+
+        <section class="landing-section landing-workflow">
+            <div class="workflow-intro">
+                <p class="section-kicker mb-1">How TalentFlow works</p>
+                <h2>One hiring process, different workspace views.</h2>
+                <p>
+                    Candidates can view roles publicly. Staff members sign in to manage candidate
+                    records, interviews, and decisions based on their role.
+                </p>
+            </div>
+
+            <div class="workflow-layout">
+                <div class="process-panel">
+                    <div class="mini-heading">
+                        <span>Process</span>
+                        <strong>From open role to decision</strong>
+                    </div>
+                    <div class="process-line">
+                        <article>
+                            <span>01</span>
+                            <h3>Find a role</h3>
+                            <p>Candidates view open opportunities without needing an account.</p>
+                        </article>
+                        <article>
+                            <span>02</span>
+                            <h3>Manage records</h3>
+                            <p>Recruiters add or import candidate records into the workspace.</p>
+                        </article>
+                        <article>
+                            <span>03</span>
+                            <h3>Interview</h3>
+                            <p>Interview details stay connected to the candidate profile.</p>
+                        </article>
+                        <article>
+                            <span>04</span>
+                            <h3>Decide</h3>
+                            <p>The team tracks outcomes clearly across the pipeline.</p>
+                        </article>
+                    </div>
+                </div>
+
+                <div class="roles-panel">
+                    <div class="mini-heading">
+                        <span>Roles</span>
+                        <strong>What each user sees</strong>
+                    </div>
+                    <div class="role-grid">
+                        <article>
+                            <span>Recruiter</span>
+                            <h3>Manage pipeline</h3>
+                            <p>Candidates, jobs, notes, interviews, imports, and reports.</p>
+                        </article>
+                        <article>
+                            <span>Hiring Manager</span>
+                            <h3>Review activity</h3>
+                            <p>Dashboard, jobs, reports, and role-level hiring visibility.</p>
+                        </article>
+                        <article>
+                            <span>HR Admin</span>
+                            <h3>Oversee hiring</h3>
+                            <p>Full recruitment access across jobs, candidates, and reports.</p>
+                        </article>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="landing-section" id="open-roles">
+            <div class="section-heading">
+                <p class="section-kicker mb-1">Open roles</p>
+                <h2>Current opportunities.</h2>
+            </div>
+            <div class="landing-jobs">
+                {% for job in open_jobs %}
+                    <article class="landing-job">
+                        <div>
+                            <h3>{{ job.title }}</h3>
+                            <p>{{ job.department }}{% if job.location %} - {{ job.location }}{% endif %}</p>
+                        </div>
+                        <span class="status-badge job-status-{{ job.status }}">{{ job.get_status_display }}</span>
+                    </article>
+                {% empty %}
+                    <article class="landing-job">
+                        <div>
+                            <h3>No open roles yet</h3>
+                            <p>Please check back later for available opportunities.</p>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+</body>
+</html>

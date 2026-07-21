@@ -1,0 +1,129 @@
+{% extends "recruitment/base.html" %}
+
+{% block title %}Reports | TalentFlow{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <p class="section-kicker mb-1">Recruitment reports</p>
+        <h1 class="page-title mb-1">Reports</h1>
+        <p class="text-secondary mb-0">Simple operational reports for hiring visibility.</p>
+    </div>
+    <a class="btn btn-soft" href="{% url 'dashboard:home' %}">Dashboard</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md">
+        <div class="metric-card metric-candidates">
+            <div class="text-secondary small">Total candidates</div>
+            <div class="fs-3 fw-semibold">{{ summary.total_candidates }}</div>
+        </div>
+    </div>
+    <div class="col-md">
+        <div class="metric-card metric-interviews">
+            <div class="text-secondary small">Active candidates</div>
+            <div class="fs-3 fw-semibold">{{ summary.active_candidates }}</div>
+        </div>
+    </div>
+    <div class="col-md">
+        <div class="metric-card metric-offers">
+            <div class="text-secondary small">Offers</div>
+            <div class="fs-3 fw-semibold">{{ summary.offers }}</div>
+        </div>
+    </div>
+    <div class="col-md">
+        <div class="metric-card metric-hired">
+            <div class="text-secondary small">Hired</div>
+            <div class="fs-3 fw-semibold">{{ summary.hired }}</div>
+        </div>
+    </div>
+    <div class="col-md">
+        <div class="metric-card">
+            <div class="text-secondary small">Rejected</div>
+            <div class="fs-3 fw-semibold">{{ summary.rejected }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="surface p-4 h-100">
+            <h2 class="h5 mb-3">Candidates by status</h2>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th class="text-end">Candidates</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in status_rows %}
+                            <tr>
+                                <td><span class="status-badge status-{{ row.status }}">{{ row.status|title }}</span></td>
+                                <td class="text-end fw-semibold">{{ row.total }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="2" class="text-secondary">No candidate data yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="surface p-4 h-100">
+            <h2 class="h5 mb-3">Candidates by role</h2>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th class="text-end">Candidates</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in role_rows %}
+                            <tr>
+                                <td>{{ row.position_applied_for }}</td>
+                                <td class="text-end fw-semibold">{{ row.total }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="2" class="text-secondary">No role data yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="surface p-4 mt-4">
+    <h2 class="h5 mb-3">Interviews this week</h2>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Candidate</th>
+                    <th>Interview</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for interview in interviews %}
+                    <tr>
+                        <td>{{ interview.candidate.full_name }}</td>
+                        <td>{{ interview.title }}</td>
+                        <td>{{ interview.scheduled_at }}</td>
+                        <td>{{ interview.get_status_display }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="4" class="text-secondary">No interviews scheduled this week.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

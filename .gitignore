@@ -1,0 +1,12 @@
+vtalentflow/
+.env
+.agents/
+.codex/
+__pycache__/
+*.pyc
+db.sqlite3
+talentflow_db
+media/
+.coverage
+htmlcov/
+.pytest_cache/

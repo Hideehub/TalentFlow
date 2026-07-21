@@ -1,0 +1,184 @@
+<!doctype html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}TalentFlow{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{% static 'recruitment/css/app.css' %}" rel="stylesheet">
+</head>
+<body>
+    <div class="app-backdrop" aria-hidden="true"></div>
+    <div class="app-shell" id="app-shell">
+        <aside class="app-sidebar">
+            <a class="sidebar-brand" href="{% url 'dashboard:home' %}" aria-label="TalentFlow dashboard">
+                <span class="brand-mark">TF</span>
+                <span class="sidebar-brand-text">
+                    <span>TalentFlow</span>
+                    <small>Hiring workspace</small>
+                </span>
+            </a>
+
+            <nav class="side-nav" aria-label="Main navigation">
+                <a class="side-link {% if request.resolver_match.namespace == 'dashboard' %}active{% endif %}" href="{% url 'dashboard:home' %}">
+                    <span class="side-icon">D</span>
+                    <span>Dashboard</span>
+                </a>
+                <a class="side-link {% if request.resolver_match.namespace == 'recruitment' and 'job' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'recruitment:job_opening_list' %}">
+                    <span class="side-icon">J</span>
+                    <span>Jobs</span>
+                </a>
+                {% if can_manage_recruitment %}
+                    <a class="side-link {% if request.resolver_match.namespace == 'recruitment' and 'candidate' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'recruitment:candidate_list' %}">
+                        <span class="side-icon">C</span>
+                        <span>Candidates</span>
+                    </a>
+                {% endif %}
+                <a class="side-link {% if request.resolver_match.namespace == 'reports' %}active{% endif %}" href="{% url 'reports:home' %}">
+                    <span class="side-icon">R</span>
+                    <span>Reports</span>
+                </a>
+            </nav>
+
+            {% if request.user.is_authenticated %}
+                <details class="topbar-profile sidebar-profile">
+                    <summary class="topbar-user sidebar-user">
+                        <span class="topbar-avatar">{{ request.user.get_full_name|default:request.user.username|slice:":1"|upper }}</span>
+                        <span class="sidebar-user-copy">
+                            <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+                            <small>
+                                {% for role in current_user_roles %}
+                                    {{ role }}{% if not forloop.last %}, {% endif %}
+                                {% empty %}
+                                    No role assigned
+                                {% endfor %}
+                            </small>
+                        </span>
+                    </summary>
+                    <div class="profile-menu sidebar-profile-menu">
+                        <div class="profile-menu-header">
+                            <span class="topbar-avatar">{{ request.user.get_full_name|default:request.user.username|slice:":1"|upper }}</span>
+                            <span>
+                                <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+                                <small>
+                                    {% for role in current_user_roles %}
+                                        {{ role }}{% if not forloop.last %}, {% endif %}
+                                    {% empty %}
+                                        No role assigned
+                                    {% endfor %}
+                                    {% if current_company %} - {{ current_company.name }}{% endif %}
+                                </small>
+                            </span>
+                        </div>
+                        <form method="post" action="{% url 'accounts:logout' %}">
+                            {% csrf_token %}
+                            <button class="profile-logout" type="submit">Logout</button>
+                        </form>
+                    </div>
+                </details>
+            {% endif %}
+        </aside>
+
+        <div class="app-content">
+            <header class="app-topbar">
+                <div class="topbar-left">
+                    <button class="topbar-menu" id="sidebar-toggle" type="button" aria-label="Toggle sidebar" aria-expanded="true">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    <div class="topbar-breadcrumb" aria-label="Current section">
+                        <span class="breadcrumb-grid">::</span>
+                        <span>/</span>
+                        <strong>
+                            {% if request.resolver_match.namespace == 'dashboard' %}
+                                Dashboard
+                            {% elif request.resolver_match.namespace == 'recruitment' and 'job' in request.resolver_match.url_name %}
+                                Jobs
+                            {% elif request.resolver_match.namespace == 'recruitment' and 'candidate' in request.resolver_match.url_name %}
+                                Candidates
+                            {% elif request.resolver_match.namespace == 'reports' %}
+                                Reports
+                            {% elif request.resolver_match.namespace == 'uploads' %}
+                                Import
+                            {% else %}
+                                Home
+                            {% endif %}
+                        </strong>
+                    </div>
+                </div>
+
+                {% if request.user.is_authenticated %}
+                    <details class="topbar-profile">
+                        <summary class="topbar-user">
+                            <span class="topbar-avatar">{{ request.user.get_full_name|default:request.user.username|slice:":1"|upper }}</span>
+                            <span class="topbar-name">{{ request.user.get_full_name|default:request.user.username }}</span>
+                        </summary>
+                        <div class="profile-menu">
+                            <div class="profile-menu-header">
+                                <span class="topbar-avatar">{{ request.user.get_full_name|default:request.user.username|slice:":1"|upper }}</span>
+                                <span>
+                                    <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+                                    <small>
+                                    {% for role in current_user_roles %}
+                                        {{ role }}{% if not forloop.last %}, {% endif %}
+                                    {% empty %}
+                                        No role assigned
+                                    {% endfor %}
+                                    {% if current_company %} - {{ current_company.name }}{% endif %}
+                                </small>
+                                </span>
+                            </div>
+                            <form method="post" action="{% url 'accounts:logout' %}">
+                                {% csrf_token %}
+                                <button class="profile-logout" type="submit">Logout</button>
+                            </form>
+                        </div>
+                    </details>
+                {% endif %}
+            </header>
+
+            <main class="container-fluid app-main py-4 py-lg-5">
+                {% if messages %}
+                    <div class="mb-3">
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags|default:'info' }} mb-2" role="alert">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var shell = document.getElementById("app-shell");
+            var toggle = document.getElementById("sidebar-toggle");
+            if (!shell || !toggle) return;
+
+            if (localStorage.getItem("talentflow-sidebar") === "collapsed") {
+                shell.classList.add("sidebar-collapsed");
+                toggle.setAttribute("aria-expanded", "false");
+            }
+
+            toggle.addEventListener("click", function () {
+                var collapsed = shell.classList.toggle("sidebar-collapsed");
+                toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+                localStorage.setItem("talentflow-sidebar", collapsed ? "collapsed" : "expanded");
+            });
+
+            document.addEventListener("click", function (event) {
+                document.querySelectorAll(".topbar-profile[open]").forEach(function (profile) {
+                    if (!profile.contains(event.target)) {
+                        profile.removeAttribute("open");
+                    }
+                });
+            });
+        })();
+    </script>
+</body>
+</html>
