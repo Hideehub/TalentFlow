@@ -2,6 +2,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import path
 
 from .views import (
+    demo_login_view,
     invitation_accept_view,
     invitation_list_view,
     invitation_revoke_view,
@@ -12,6 +13,7 @@ app_name = "accounts"
 
 urlpatterns = [
     path("signup/", signup_view, name="signup"),
+    path("demo/<slug:role>/", demo_login_view, name="demo_login"),
     path(
         "login/",
         auth_views.LoginView.as_view(template_name="accounts/login.html"),

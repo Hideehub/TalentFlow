@@ -1,3 +1,5 @@
+import secrets
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand
@@ -45,8 +47,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--password",
-            default="TalentFlow123!",
-            help="Password to set for all test users.",
+            help="Password to set for the test users. If omitted, a random one is generated and printed.",
         )
         parser.add_argument(
             "--reset-passwords",
@@ -61,7 +62,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         User = get_user_model()
-        password = options["password"]
+        password = options["password"] or secrets.token_urlsafe(12)
+        if not options["password"]:
+            self.stdout.write(f"Generated password: {password}")
         reset_passwords = options["reset_passwords"]
         company, _created = Company.objects.get_or_create(name=options["company"])
 
@@ -93,8 +96,7 @@ class Command(BaseCommand):
             UserProfile.objects.update_or_create(user=user, defaults={"company": company})
 
             action = "Created" if created else "Updated"
+            password_note = "password set" if created or reset_passwords else "password unchanged"
             self.stdout.write(
-                self.style.SUCCESS(
-                    f"{action} {role} test user: {user.username} / {password}"
-                )
+                self.style.SUCCESS(f"{action} {role} test user: {user.username} ({password_note})")
             )

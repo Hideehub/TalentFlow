@@ -3,9 +3,17 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 from django.utils import timezone
 
+from .demo import DEMO_COMPANY_NAME, DEMO_USERNAMES
 from .models import Company, Invitation
 
 COMPANY_NAME_TAKEN = "A company with this name already exists. Ask its HR Admin for an invite."
+RESERVED_USERNAME = "This username is reserved. Please choose another."
+
+
+def _reject_demo_username(username):
+    if username and username.lower() in DEMO_USERNAMES:
+        raise forms.ValidationError(RESERVED_USERNAME)
+    return username
 
 
 class SignUpForm(UserCreationForm):
@@ -37,8 +45,13 @@ class SignUpForm(UserCreationForm):
         self.fields["password1"].widget.attrs.update({"class": "form-control"})
         self.fields["password2"].widget.attrs.update({"class": "form-control"})
 
+    def clean_username(self):
+        return _reject_demo_username(super().clean_username())
+
     def clean_company_name(self):
         company_name = self.cleaned_data["company_name"].strip()
+        if company_name.lower() == DEMO_COMPANY_NAME.lower():
+            raise forms.ValidationError("This company name is reserved.")
         if Company.objects.filter(name__iexact=company_name).exists():
             raise forms.ValidationError(COMPANY_NAME_TAKEN)
         return company_name
@@ -95,3 +108,6 @@ class InvitationAcceptForm(UserCreationForm):
         super().__init__(*args, **kwargs)
         self.fields["password1"].widget.attrs.update({"class": "form-control"})
         self.fields["password2"].widget.attrs.update({"class": "form-control"})
+
+    def clean_username(self):
+        return _reject_demo_username(super().clean_username())

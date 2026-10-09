@@ -65,6 +65,21 @@
 
                 <button class="btn btn-primary w-100" type="submit">Sign in</button>
             </form>
+
+            {% if demo_mode %}
+                <div class="border-top mt-4 pt-4">
+                    <p class="section-kicker mb-1">Try the demo</p>
+                    <p class="text-secondary small mb-3">Explore a sample company with one click. Demo data may be reset at any time.</p>
+                    <div class="d-grid gap-2">
+                        {% for role, account in demo_accounts.items %}
+                            <form method="post" action="{% url 'accounts:demo_login' role %}">
+                                {% csrf_token %}
+                                <button class="btn btn-soft w-100" type="submit">Log in as {{ account.label }}</button>
+                            </form>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
         </div>
     </main>
 </body>

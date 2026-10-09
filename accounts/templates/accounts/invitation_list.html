@@ -9,6 +9,9 @@
     <p class="text-secondary mb-0">Create an invite, then copy the link and send it to your teammate. Links expire after 7 days.</p>
 </div>
 
+{% if is_demo_user %}
+    <div class="alert alert-info">Creating and revoking invites is disabled in the demo.</div>
+{% else %}
 <form method="post" class="surface p-3 mb-3">
     {% csrf_token %}
     <div class="row g-2 align-items-end">
@@ -31,6 +34,7 @@
         </div>
     </div>
 </form>
+{% endif %}
 
 <div class="surface overflow-hidden">
     <div class="table-responsive">
@@ -58,10 +62,12 @@
                         </td>
                         <td>{{ invitation.expires_at|date:"M j, Y H:i" }}</td>
                         <td class="text-end">
-                            <form method="post" action="{% url 'accounts:invitation_revoke' invitation.id %}">
-                                {% csrf_token %}
-                                <button class="btn btn-sm btn-soft" type="submit">Revoke</button>
-                            </form>
+                            {% if not is_demo_user %}
+                                <form method="post" action="{% url 'accounts:invitation_revoke' invitation.id %}">
+                                    {% csrf_token %}
+                                    <button class="btn btn-sm btn-soft" type="submit">Revoke</button>
+                                </form>
+                            {% endif %}
                         </td>
                     </tr>
                 {% empty %}
