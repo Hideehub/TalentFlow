@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 
 from accounts.choices import RECRUITMENT_ROLES, ROLE_RECRUITER
-from accounts.decorators import role_required, user_has_role
+from accounts.decorators import company_required, role_required, user_has_role
 
 from .forms import CandidateImportForm
 from .services import CandidateImportError, candidate_import_confirm, candidate_import_preview
@@ -11,6 +11,7 @@ PREVIEW_SESSION_KEY = "candidate_import_preview"
 
 
 @role_required(*RECRUITMENT_ROLES)
+@company_required("recruitment:candidate_list")
 def candidate_import_view(request):
     form = CandidateImportForm()
     preview = None
@@ -33,6 +34,7 @@ def candidate_import_view(request):
 
 
 @role_required(*RECRUITMENT_ROLES)
+@company_required("recruitment:candidate_list")
 def candidate_import_confirm_view(request):
     if request.method != "POST":
         return redirect("uploads:candidate_import")
@@ -52,6 +54,7 @@ def candidate_import_confirm_view(request):
 
     messages.success(
         request,
-        f"Imported {result['imported']} candidate(s). Skipped {result['skipped']}.",
+        f"Imported {result['imported']} application(s), "
+        f"including {result['new_candidates']} new candidate(s). Skipped {result['skipped']}.",
     )
-    return redirect("recruitment:candidate_list")
+    return redirect("recruitment:application_list")

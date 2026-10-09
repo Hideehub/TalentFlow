@@ -11,30 +11,36 @@
                 <h1 class="page-title mb-1">{{ title }}</h1>
                 <p class="text-secondary mb-0">Keep candidate information structured from day one.</p>
             </div>
-            <a class="btn btn-soft" href="{% url 'recruitment:candidate_list' %}">Back</a>
+            <a class="btn btn-soft" href="{{ back_url }}">Back</a>
         </div>
 
         <form method="post" class="surface p-4">
             {% csrf_token %}
 
-            {% if form.non_field_errors %}
-                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-            {% endif %}
+            {% for heading, form in sections %}
+                {% if sections|length > 1 %}
+                    <h2 class="h6 {% if not forloop.first %}mt-4{% endif %} mb-3">{{ heading }}</h2>
+                {% endif %}
 
-            <div class="row g-3">
-                {% for field in form %}
-                    <div class="col-md-6">
-                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                        {{ field }}
-                        {% if field.errors %}
-                            <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
-                        {% endif %}
-                    </div>
-                {% endfor %}
-            </div>
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="row g-3">
+                    {% for field in form %}
+                        <div class="col-md-6">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                                <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
 
             <div class="d-flex justify-content-end gap-2 mt-4">
-                <a class="btn btn-soft" href="{% url 'recruitment:candidate_list' %}">Cancel</a>
+                <a class="btn btn-soft" href="{{ back_url }}">Cancel</a>
                 <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
             </div>
         </form>

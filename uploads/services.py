@@ -10,8 +10,8 @@ from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
 from accounts.tenancy import get_user_company
-from recruitment.choices import CANDIDATE_STATUS
-from recruitment.models import Candidate, JobOpening
+from recruitment.choices import APPLICATION_STATUS
+from recruitment.models import Application, Candidate, JobOpening
 
 from .choices import (
     CANDIDATE_HEADER_ALIASES,
@@ -79,6 +79,39 @@ def _normalize_experience(value):
     return number if number >= 0 else None
 
 
+def _candidates_by_email(company, emails):
+    return {
+        candidate.email.lower(): candidate
+        for candidate in Candidate.objects.annotate(email_key=Lower("email")).filter(
+            company=company, email_key__in=emails
+        )
+    }
+
+
+def _open_jobs_by_title(company):
+    return {
+        job.title.lower(): job
+        for job in JobOpening.objects.filter(status="open", company=company)
+    }
+
+
+def _application_key(email, job_id, position):
+    # A matched job identifies the application; without one, the imported position text does.
+    return (email, ("job", job_id)) if job_id else (email, ("position", position.lower()))
+
+
+def _existing_application_keys(company, emails):
+    rows = (
+        Application.objects.annotate(
+            email_key=Lower("candidate__email"),
+            position_key=Lower("imported_position"),
+        )
+        .filter(candidate__company=company, email_key__in=emails)
+        .values_list("email_key", "job_id", "position_key")
+    )
+    return {_application_key(email, job_id, position) for email, job_id, position in rows}
+
+
 def candidate_import_preview(uploaded_file, *, user=None):
     try:
         workbook = load_workbook(uploaded_file, read_only=True, data_only=True)
@@ -108,9 +141,7 @@ def candidate_import_preview(uploaded_file, *, user=None):
                 "full_name": _normalize_name(_cell_value(row, mapping, "full_name")),
                 "email": email,
                 "phone": str(_cell_value(row, mapping, "phone") or "").strip(),
-                "position_applied_for": str(
-                    _cell_value(row, mapping, "position_applied_for") or ""
-                ).strip(),
+                "position": str(_cell_value(row, mapping, "position") or "").strip(),
                 "years_of_experience": _normalize_experience(
                     _cell_value(row, mapping, "years_of_experience")
                 ),
@@ -119,19 +150,16 @@ def candidate_import_preview(uploaded_file, *, user=None):
             }
         )
 
-    email_counts = Counter(row["email"] for row in parsed_rows if row["email"])
+    # The same person may appear on several rows, but only once per position.
+    email_position_counts = Counter(
+        (row["email"], row["position"].lower()) for row in parsed_rows if row["email"]
+    )
     company = get_user_company(user)
-    existing_candidates = Candidate.objects.annotate(email_key=Lower("email"))
-    if company:
-        existing_candidates = existing_candidates.filter(company=company)
-
-    existing_emails = {
-        email
-        for email in existing_candidates
-        .filter(email_key__in=[row["email"] for row in parsed_rows if row["email"]])
-        .values_list("email_key", flat=True)
-    }
-    valid_statuses = {value for value, _label in CANDIDATE_STATUS}
+    emails = [row["email"] for row in parsed_rows if row["email"]]
+    existing_candidates = _candidates_by_email(company, emails)
+    existing_keys = _existing_application_keys(company, emails)
+    jobs_by_title = _open_jobs_by_title(company)
+    valid_statuses = {value for value, _label in APPLICATION_STATUS}
 
     for row in parsed_rows:
         if not row["full_name"]:
@@ -145,14 +173,18 @@ def candidate_import_preview(uploaded_file, *, user=None):
             except ValidationError:
                 row["errors"].append("Email is invalid.")
 
-            if email_counts[row["email"]] > 1:
-                row["errors"].append("Duplicate email in this file.")
-            if row["email"] in existing_emails:
-                row["errors"].append("A candidate with this email already exists.")
+            if email_position_counts[(row["email"], row["position"].lower())] > 1:
+                row["errors"].append("Same email and position appear more than once in this file.")
+
+        job = jobs_by_title.get(row["position"].lower())
+        row["job_title"] = job.title if job else ""
+        row["existing_candidate"] = row["email"] in existing_candidates
+        if _application_key(row["email"], job and job.id, row["position"]) in existing_keys:
+            row["errors"].append("This candidate already has an application for this position.")
 
         if not row["phone"]:
             row["errors"].append("Phone number is required.")
-        if not row["position_applied_for"]:
+        if not row["position"]:
             row["errors"].append("Position is required.")
         if row["years_of_experience"] is None:
             row["errors"].append("Experience must be zero or a positive number.")
@@ -171,50 +203,57 @@ def candidate_import_preview(uploaded_file, *, user=None):
     }
 
 
+@transaction.atomic
 def candidate_import_confirm(rows, *, user=None, assigned_recruiter=None):
+    """Create one application per valid row, reusing the person if their email already exists."""
     valid_rows = [row for row in rows if row.get("is_valid")]
     emails = [row["email"] for row in valid_rows]
     company = get_user_company(user)
-    existing_candidates = Candidate.objects.annotate(email_key=Lower("email"))
-    if company:
-        existing_candidates = existing_candidates.filter(company=company)
-    existing_emails = {
-        email
-        for email in existing_candidates
-        .filter(email_key__in=emails)
-        .values_list("email_key", flat=True)
-    }
-    jobs_by_title = {
-        job.title.lower(): job
-        for job in JobOpening.objects.filter(status="open", company=company)
-    }
+    candidates_by_email = _candidates_by_email(company, emails)
+    existing_keys = _existing_application_keys(company, emails)
+    jobs_by_title = _open_jobs_by_title(company)
 
-    candidates = []
+    new_candidates = []
+    applications = []
     skipped = 0
     for row in valid_rows:
-        if row["email"] in existing_emails:
+        position = row["position"]
+        job = jobs_by_title.get(position.lower())
+        key = _application_key(row["email"], job and job.id, position)
+        # Re-checked here because the data may have changed since the preview.
+        if key in existing_keys:
             skipped += 1
             continue
+        existing_keys.add(key)
 
-        position = row["position_applied_for"]
-        candidates.append(
-            Candidate(
-                full_name=row["full_name"],
+        candidate = candidates_by_email.get(row["email"])
+        if candidate is None:
+            candidate = Candidate(
                 company=company,
+                full_name=row["full_name"],
                 email=row["email"],
                 phone=row["phone"],
-                position_applied_for=position,
-                job=jobs_by_title.get(position.lower()),
-                assigned_recruiter=assigned_recruiter,
                 years_of_experience=row["years_of_experience"],
+                source="import",
+            )
+            candidates_by_email[row["email"]] = candidate
+            new_candidates.append(candidate)
+
+        applications.append(
+            Application(
+                candidate=candidate,
+                job=job,
+                imported_position="" if job else position,
                 status=row["status"],
+                assigned_recruiter=assigned_recruiter,
             )
         )
 
-    with transaction.atomic():
-        Candidate.objects.bulk_create(candidates)
+    Candidate.objects.bulk_create(new_candidates)
+    Application.objects.bulk_create(applications)
 
     return {
-        "imported": len(candidates),
+        "imported": len(applications),
+        "new_candidates": len(new_candidates),
         "skipped": skipped,
     }

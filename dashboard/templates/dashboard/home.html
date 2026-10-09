@@ -9,17 +9,13 @@
         <h1 class="page-title mb-1">Dashboard</h1>
         <p class="text-secondary mb-0">{{ scope_label }}</p>
     </div>
-    {% if can_manage_recruitment %}
-        <a class="btn btn-soft" href="{% url 'recruitment:candidate_list' %}">Candidates</a>
-    {% else %}
-        <a class="btn btn-soft" href="{% url 'recruitment:job_opening_list' %}">Jobs</a>
-    {% endif %}
+    <a class="btn btn-soft" href="{% url 'recruitment:application_list' %}">Applications</a>
 </div>
 
 <div class="row g-3 mb-4">
     <div class="col-md-3">
         <div class="metric-card metric-candidates">
-            <div class="text-secondary small">Candidates</div>
+            <div class="text-secondary small">Candidates in pipeline</div>
             <div class="fs-3 fw-semibold">{{ summary.candidate_count }}</div>
         </div>
     </div>
@@ -53,17 +49,17 @@
                     <span class="fw-semibold">{{ row.total }}</span>
                 </div>
             {% empty %}
-                <p class="text-secondary mb-0">No candidate data yet.</p>
+                <p class="text-secondary mb-0">No applications yet.</p>
             {% endfor %}
         </div>
     </div>
 
     <div class="col-lg-4">
         <div class="surface p-4 h-100">
-            <h2 class="h5 mb-3">Roles with most candidates</h2>
+            <h2 class="h5 mb-3">Roles with most applications</h2>
             {% for role in hardest_roles %}
                 <div class="mini-row">
-                    <span>{{ role.position_applied_for }}</span>
+                    <span>{{ role.position }}</span>
                     <span class="fw-semibold">{{ role.total }}</span>
                 </div>
             {% empty %}
@@ -78,7 +74,7 @@
             {% for interview in upcoming_interviews %}
                 <div class="border-bottom py-2">
                     <div class="fw-semibold">{{ interview.title }}</div>
-                    <div class="small text-secondary">{{ interview.candidate.full_name }} · {{ interview.scheduled_at }}</div>
+                    <div class="small text-secondary">{{ interview.application.candidate.full_name }} · {{ interview.scheduled_at }}</div>
                 </div>
             {% empty %}
                 <p class="text-secondary mb-0">No interviews scheduled.</p>

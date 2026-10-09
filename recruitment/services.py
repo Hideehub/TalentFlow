@@ -1,69 +1,136 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from accounts.choices import ROLE_RECRUITER
 from accounts.decorators import user_has_role
 from accounts.tenancy import get_user_company
 
 from .forms import (
+    ApplicationForm,
+    ApplicationNoteForm,
+    ApplicationStatusForm,
     CandidateForm,
-    CandidateNoteForm,
-    CandidateStatusForm,
     InterviewForm,
     JobOpeningForm,
 )
+from .models import Candidate
+
+APPLICATION_PREFIX = "application"
+CANDIDATE_JUST_ADDED = (
+    "Someone just added a candidate with this email. "
+    "Submit again to add this application to their profile."
+)
+
+
+def _find_candidate(company, email):
+    if not email:
+        return None
+    return Candidate.objects.filter(company=company, email__iexact=email).first()
+
+
+def _assign_creating_recruiter(application, user):
+    if user and not application.assigned_recruiter and user_has_role(user, (ROLE_RECRUITER,)):
+        application.assigned_recruiter = user
 
 
 @transaction.atomic
 def candidate_create(*, data, user=None):
-    form = CandidateForm(data=data, user=user)
-    if form.is_valid():
-        candidate = form.save(commit=False)
-        candidate.company = candidate.job.company or get_user_company(user)
-        candidate.position_applied_for = candidate.job.title
-        if user and not candidate.assigned_recruiter and user_has_role(user, (ROLE_RECRUITER,)):
-            candidate.assigned_recruiter = user
-        candidate.save()
-        return candidate, form
-    return None, form
+    """Create an application, and the person too unless their email already exists.
+
+    Returns (candidate, created, candidate_form, application_form). An existing person's
+    details are kept as they are; only the new application is added.
+    """
+    company = get_user_company(user)
+    email = (data.get("email") or "").strip()
+    existing = _find_candidate(company, email)
+    candidate_form = CandidateForm(data=data, company=company, allow_existing_email=True)
+    # Passing the existing person lets the form reject a second application to the same job.
+    application_form = ApplicationForm(
+        data=data, user=user, company=company, candidate=existing, prefix=APPLICATION_PREFIX
+    )
+    if candidate_form.is_valid() and application_form.is_valid():
+        candidate = existing
+        if candidate is None:
+            candidate = candidate_form.save(commit=False)
+            candidate.company = company
+            # Another request can create the same email between the lookup and this insert.
+            # The savepoint keeps the outer transaction usable after the IntegrityError.
+            try:
+                with transaction.atomic():
+                    candidate.save()
+            except IntegrityError:
+                candidate_form.add_error("email", CANDIDATE_JUST_ADDED)
+                return None, False, candidate_form, application_form
+
+        application = application_form.save(commit=False)
+        application.candidate = candidate
+        _assign_creating_recruiter(application, user)
+        application.save()
+        return candidate, existing is None, candidate_form, application_form
+    return None, False, candidate_form, application_form
 
 
 @transaction.atomic
-def candidate_update(*, candidate, data, user=None):
-    form = CandidateForm(data=data, instance=candidate, user=user)
-    if form.is_valid():
-        candidate = form.save(commit=False)
-        candidate.company = candidate.job.company or candidate.company or get_user_company(user)
-        candidate.position_applied_for = candidate.job.title
-        candidate.save()
-        return candidate, form
-    return None, form
-
-
-@transaction.atomic
-def candidate_status_update(*, candidate, data):
-    form = CandidateStatusForm(data=data, instance=candidate)
+def candidate_update(*, candidate, data):
+    form = CandidateForm(data=data, instance=candidate, company=candidate.company)
     if form.is_valid():
         return form.save(), form
     return None, form
 
 
 @transaction.atomic
-def candidate_note_create(*, candidate, data):
-    form = CandidateNoteForm(data=data)
+def application_create(*, candidate, data, user=None):
+    form = ApplicationForm(
+        data=data, user=user, company=candidate.company, candidate=candidate
+    )
+    if form.is_valid():
+        application = form.save(commit=False)
+        application.candidate = candidate
+        _assign_creating_recruiter(application, user)
+        application.save()
+        return application, form
+    return None, form
+
+
+@transaction.atomic
+def application_update(*, application, data, user=None):
+    form = ApplicationForm(
+        data=data,
+        instance=application,
+        user=user,
+        company=application.candidate.company,
+        candidate=application.candidate,
+    )
+    if form.is_valid():
+        return form.save(), form
+    return None, form
+
+
+@transaction.atomic
+def application_status_update(*, application, data):
+    form = ApplicationStatusForm(data=data, instance=application)
+    if form.is_valid():
+        return form.save(), form
+    return None, form
+
+
+@transaction.atomic
+def application_note_create(*, application, data, author=None):
+    form = ApplicationNoteForm(data=data)
     if form.is_valid():
         note = form.save(commit=False)
-        note.candidate = candidate
+        note.application = application
+        note.author = author
         note.save()
         return note, form
     return None, form
 
 
 @transaction.atomic
-def interview_create(*, candidate, data):
-    form = InterviewForm(data=data)
+def interview_create(*, application, data):
+    form = InterviewForm(data=data, company=application.candidate.company)
     if form.is_valid():
         interview = form.save(commit=False)
-        interview.candidate = candidate
+        interview.application = application
         interview.save()
         return interview, form
     return None, form
@@ -86,7 +153,5 @@ def job_opening_create(*, data, user=None, status="open"):
 def job_opening_update(*, job, data, user=None):
     form = JobOpeningForm(data=data, instance=job, user=user)
     if form.is_valid():
-        updated_job = form.save()
-        updated_job.candidates.update(position_applied_for=updated_job.title)
-        return updated_job, form
+        return form.save(), form
     return None, form

@@ -1,4 +1,5 @@
 vtalentflow/
+.venv/
 .env
 .agents/
 .codex/
@@ -10,3 +11,4 @@ media/
 .coverage
 htmlcov/
 .pytest_cache/
+.ruff_cache/

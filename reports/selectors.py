@@ -1,21 +1,24 @@
 from datetime import timedelta
 
 from django.db.models import Count
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from recruitment.models import Interview
-from recruitment.selectors import candidate_scope
+from recruitment.selectors import application_scope
 
 
 def candidate_status_report(user=None):
-    return candidate_scope(user).values("status").annotate(total=Count("id")).order_by("status")
+    return application_scope(user).values("status").annotate(total=Count("id")).order_by("status")
 
 
 def candidate_role_report(user=None):
     return (
-        candidate_scope(user).values("position_applied_for")
+        application_scope(user)
+        .annotate(position=Coalesce("job__title", "imported_position"))
+        .values("position")
         .annotate(total=Count("id"))
-        .order_by("-total", "position_applied_for")
+        .order_by("-total", "position")
     )
 
 
@@ -24,9 +27,9 @@ def interview_week_report(user=None):
     week_end = today + timedelta(days=7)
 
     return (
-        Interview.objects.select_related("candidate")
+        Interview.objects.select_related("application__candidate")
         .filter(
-            candidate__in=candidate_scope(user),
+            application__in=application_scope(user),
             scheduled_at__date__gte=today,
             scheduled_at__date__lte=week_end,
         )
@@ -35,11 +38,11 @@ def interview_week_report(user=None):
 
 
 def recruitment_summary_report(user=None):
-    candidates = candidate_scope(user)
+    applications = application_scope(user)
     return {
-        "total_candidates": candidates.count(),
-        "active_candidates": candidates.exclude(status__in=("hired", "rejected")).count(),
-        "offers": candidates.filter(status="offer").count(),
-        "hired": candidates.filter(status="hired").count(),
-        "rejected": candidates.filter(status="rejected").count(),
+        "total_candidates": applications.values("candidate").distinct().count(),
+        "active_applications": applications.exclude(status__in=("hired", "rejected")).count(),
+        "offers": applications.filter(status="offer").count(),
+        "hired": applications.filter(status="hired").count(),
+        "rejected": applications.filter(status="rejected").count(),
     }

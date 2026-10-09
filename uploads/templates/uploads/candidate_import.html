@@ -7,7 +7,7 @@
     <div>
         <p class="section-kicker mb-1">Historical records</p>
         <h1 class="page-title mb-1">Import candidates</h1>
-        <p class="text-secondary mb-0">Preview and validate old Excel records before adding them to TalentFlow.</p>
+        <p class="text-secondary mb-0">Preview and validate old Excel records before adding them to TalentFlow. Rows for people already in TalentFlow become new applications on their existing profile.</p>
     </div>
     <a class="btn btn-soft" href="{% url 'recruitment:candidate_list' %}">Candidates</a>
 </div>
@@ -54,12 +54,16 @@
                                 <div class="small text-secondary">{{ row.email|default:"Missing email" }}</div>
                             </td>
                             <td>{{ row.phone }}</td>
-                            <td>{{ row.position_applied_for }}</td>
+                            <td>
+                                {{ row.position }}
+                                {% if row.is_valid and not row.job_title %}<div class="small text-secondary">No matching open job</div>{% endif %}
+                            </td>
                             <td>{{ row.years_of_experience }}</td>
                             <td>{{ row.status|title }}</td>
                             <td>
                                 {% if row.is_valid %}
                                     <span class="badge text-bg-success">Ready</span>
+                                    {% if row.existing_candidate %}<div class="small text-secondary">Existing candidate</div>{% endif %}
                                 {% else %}
                                     {% for error in row.errors %}
                                         <div class="small text-danger">{{ error }}</div>
@@ -78,7 +82,7 @@
         <form method="post" action="{% url 'uploads:candidate_import_confirm' %}">
             {% csrf_token %}
             <button class="btn btn-success" type="submit" {% if preview.valid_rows == 0 %}disabled{% endif %}>
-                Import {{ preview.valid_rows }} candidate{{ preview.valid_rows|pluralize }}
+                Import {{ preview.valid_rows }} application{{ preview.valid_rows|pluralize }}
             </button>
         </form>
     </div>

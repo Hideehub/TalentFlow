@@ -1,4 +1,4 @@
-CANDIDATE_STATUS = [
+APPLICATION_STATUS = [
     ("applied", "Applied"),
     ("screening", "Screening"),
     ("interview", "Interview"),
@@ -30,4 +30,15 @@ EMPLOYMENT_TYPE = [
     ("hybrid", "Hybrid"),
     ("contract", "Contract"),
     ("internship", "Internship"),
+]
+
+
+CANDIDATE_SOURCE = [
+    ("career_site", "Career site"),
+    ("referral", "Referral"),
+    ("linkedin", "LinkedIn"),
+    ("job_board", "Job board"),
+    ("agency", "Agency"),
+    ("import", "Excel import"),
+    ("other", "Other"),
 ]

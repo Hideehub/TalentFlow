@@ -1,11 +1,16 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 
-from accounts.choices import ROLE_HR_ADMIN, ROLE_RECRUITER
+from accounts.choices import ROLE_HIRING_MANAGER, ROLE_HR_ADMIN, ROLE_RECRUITER
 from accounts.decorators import user_has_role
-from accounts.tenancy import company_users, get_user_company
+from accounts.tenancy import get_user_company
 
-from .models import Candidate, CandidateNote, Interview, JobOpening
+from .models import Application, ApplicationNote, Candidate, Interview, JobOpening
+
+
+def _company_users(company):
+    return get_user_model().objects.filter(profile__company=company)
 
 
 class CandidateForm(forms.ModelForm):
@@ -15,45 +20,66 @@ class CandidateForm(forms.ModelForm):
             "full_name",
             "email",
             "phone",
-            "job",
-            "assigned_recruiter",
             "years_of_experience",
-            "status",
+            "source",
         )
         widgets = {
             "full_name": forms.TextInput(attrs={"class": "form-control"}),
             "email": forms.EmailInput(attrs={"class": "form-control"}),
             "phone": forms.TextInput(attrs={"class": "form-control"}),
+            "years_of_experience": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "source": forms.Select(attrs={"class": "form-select"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.company = kwargs.pop("company", None)
+        # On create, an existing email means "reuse that person", so it isn't an error.
+        self.allow_existing_email = kwargs.pop("allow_existing_email", False)
+        super().__init__(*args, **kwargs)
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if self.allow_existing_email:
+            return email
+        # company isn't a form field, so model validation skips the DB constraint.
+        duplicates = Candidate.objects.filter(company=self.company, email__iexact=email)
+        if self.instance.pk:
+            duplicates = duplicates.exclude(pk=self.instance.pk)
+        if duplicates.exists():
+            raise forms.ValidationError("A candidate with this email already exists.")
+        return email
+
+
+class ApplicationForm(forms.ModelForm):
+    class Meta:
+        model = Application
+        fields = ("job", "assigned_recruiter", "status")
+        widgets = {
             "job": forms.Select(attrs={"class": "form-select"}),
             "assigned_recruiter": forms.Select(attrs={"class": "form-select"}),
-            "years_of_experience": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
             "status": forms.Select(attrs={"class": "form-select"}),
         }
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
+        self.company = kwargs.pop("company", None)
+        self.candidate = kwargs.pop("candidate", None)
         super().__init__(*args, **kwargs)
-        selected_job_id = self.instance.job_id if self.instance and self.instance.pk else None
-        jobs = JobOpening.objects.filter(status="open")
-        company = get_user_company(self.user)
-        if self.user and self.user.is_authenticated and not self.user.is_superuser:
-            jobs = jobs.filter(company=company)
-        if selected_job_id:
-            jobs = JobOpening.objects.filter(Q(status="open") | Q(id=selected_job_id))
-            if self.user and self.user.is_authenticated and not self.user.is_superuser:
-                jobs = jobs.filter(company=company)
-        self.fields["job"].queryset = jobs.order_by("title")
+
+        job_filter = Q(status="open")
+        if self.instance.pk and self.instance.job_id:
+            job_filter |= Q(id=self.instance.job_id)
+        self.fields["job"].queryset = JobOpening.objects.filter(
+            job_filter, company=self.company
+        ).order_by("title")
         self.fields["job"].empty_label = "Select an open job"
         self.fields["job"].required = True
 
-        selected_recruiter_id = (
-            self.instance.assigned_recruiter_id if self.instance and self.instance.pk else None
-        )
         recruiter_filter = Q(groups__name=ROLE_RECRUITER) | Q(is_superuser=True)
-        if selected_recruiter_id:
-            recruiter_filter |= Q(id=selected_recruiter_id)
+        if self.instance.pk and self.instance.assigned_recruiter_id:
+            recruiter_filter |= Q(id=self.instance.assigned_recruiter_id)
 
-        recruiters = company_users(self.user).filter(recruiter_filter).distinct()
+        recruiters = _company_users(self.company).filter(recruiter_filter).distinct()
         if self.user and self.user.is_authenticated and not (
             self.user.is_superuser or user_has_role(self.user, (ROLE_HR_ADMIN,))
         ):
@@ -64,19 +90,38 @@ class CandidateForm(forms.ModelForm):
         self.fields["assigned_recruiter"].queryset = recruiters.order_by("first_name", "username")
         self.fields["assigned_recruiter"].empty_label = "Unassigned"
 
+    def clean_job(self):
+        job = self.cleaned_data["job"]
+        if self.candidate and job:
+            duplicates = Application.objects.filter(
+                candidate=self.candidate, job=job
+            ).select_related("assigned_recruiter")
+            if self.instance.pk:
+                duplicates = duplicates.exclude(pk=self.instance.pk)
+            duplicate = duplicates.first()
+            if duplicate:
+                owner = duplicate.assigned_recruiter
+                owner_name = (owner.get_full_name() or owner.username) if owner else None
+                raise forms.ValidationError(
+                    f"Already applied — owned by {owner_name}."
+                    if owner_name
+                    else "Already applied — unassigned."
+                )
+        return job
 
-class CandidateStatusForm(forms.ModelForm):
+
+class ApplicationStatusForm(forms.ModelForm):
     class Meta:
-        model = Candidate
+        model = Application
         fields = ("status",)
         widgets = {
             "status": forms.Select(attrs={"class": "form-select"}),
         }
 
 
-class CandidateNoteForm(forms.ModelForm):
+class ApplicationNoteForm(forms.ModelForm):
     class Meta:
-        model = CandidateNote
+        model = ApplicationNote
         fields = ("note",)
         widgets = {
             "note": forms.Textarea(
@@ -107,14 +152,19 @@ class InterviewForm(forms.ModelForm):
                 format="%Y-%m-%dT%H:%M",
             ),
             "location": forms.TextInput(attrs={"class": "form-control"}),
-            "interviewer": forms.TextInput(attrs={"class": "form-control"}),
+            "interviewer": forms.Select(attrs={"class": "form-select"}),
             "status": forms.Select(attrs={"class": "form-select"}),
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
 
     def __init__(self, *args, **kwargs):
+        self.company = kwargs.pop("company", None)
         super().__init__(*args, **kwargs)
         self.fields["scheduled_at"].input_formats = ["%Y-%m-%dT%H:%M"]
+        self.fields["interviewer"].queryset = _company_users(self.company).order_by(
+            "first_name", "username"
+        )
+        self.fields["interviewer"].empty_label = "Select an interviewer"
 
 
 class JobOpeningForm(forms.ModelForm):
@@ -127,6 +177,7 @@ class JobOpeningForm(forms.ModelForm):
             "employment_type",
             "application_deadline",
             "status",
+            "hiring_manager",
             "description",
         )
         widgets = {
@@ -139,6 +190,7 @@ class JobOpeningForm(forms.ModelForm):
                 format="%Y-%m-%d",
             ),
             "status": forms.Select(attrs={"class": "form-select"}),
+            "hiring_manager": forms.Select(attrs={"class": "form-select"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 5}),
         }
 
@@ -148,3 +200,12 @@ class JobOpeningForm(forms.ModelForm):
         is_create = self.instance._state.adding
         if is_create:
             self.fields.pop("status")
+
+        company = get_user_company(self.user) if is_create else self.instance.company
+        manager_filter = Q(groups__name=ROLE_HIRING_MANAGER)
+        if self.instance.hiring_manager_id:
+            manager_filter |= Q(id=self.instance.hiring_manager_id)
+        self.fields["hiring_manager"].queryset = (
+            _company_users(company).filter(manager_filter).distinct().order_by("first_name", "username")
+        )
+        self.fields["hiring_manager"].empty_label = "No hiring manager"

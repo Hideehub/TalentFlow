@@ -19,13 +19,13 @@ The application is currently built around this hiring process:
 1. A candidate or visitor lands on the public welcome page.
 2. Candidates can view open roles without logging in.
 3. Staff sign in to their company's internal hiring workspace.
-4. HR or recruitment creates a job opening.
-5. Candidate records are added manually or imported from Excel.
-6. HR Admin assigns candidate ownership where needed.
-7. Recruiters review candidate records in their own pipeline and move them through hiring stages.
-8. Recruiters add notes and schedule interviews.
-9. Hiring Managers review company job and candidate activity.
-10. The organization tracks outcomes such as offers, hires, and rejected candidates.
+4. HR or recruitment creates a job opening and can name its Hiring Manager.
+5. Candidates (people) and their applications (one per job) are added manually or imported from Excel.
+6. HR Admin assigns application ownership to recruiters where needed.
+7. Recruiters work the applications in their own pipeline and move them through hiring stages.
+8. Recruiters add notes and schedule interviews on applications.
+9. Hiring Managers review the applications for the jobs they manage and add notes.
+10. The organization tracks outcomes such as offers, hires, and rejections.
 
 ## 2. Current Application Modules
 
@@ -48,12 +48,24 @@ The `recruitment` app is the main operational area.
 It manages:
 
 - Job openings
-- Candidates
-- Candidate notes
+- Candidates (the people)
+- Applications (a candidate applying to a job)
+- Application notes
 - Interviews
-- Candidate status movement
+- Application status movement
 
-The internal recruitment workspace is mounted under `/recruitment/`. Jobs and candidates belong to the logged-in user's company.
+The internal recruitment workspace is mounted under `/recruitment/`. Jobs and candidates belong to the logged-in user's company; applications belong to it through their candidate.
+
+#### Candidates and applications
+
+TalentFlow separates the person from what they applied for:
+
+- **Candidate** is the person: name, email, phone, years of experience, and source (career site, referral, LinkedIn, job board, agency, Excel import, or other). Email is unique per company, ignoring case, so each person exists once per company.
+- **Application** is that person applying to one job: the job, status, assigned recruiter, and date applied. Notes and interviews belong to the application, not the person.
+- A candidate can have many applications, but only one per job.
+- An imported row whose position does not match an open job still creates an application. It has no job and keeps the position text in `imported_position`, again at most once per candidate and position.
+- An application shows its job's current title, so renaming a job needs no syncing.
+- Adding a candidate whose email already exists in the company adds the new application to the existing person and leaves their details unchanged. It is only an error if that person already applied to the same job.
 
 ### Dashboard
 
@@ -61,12 +73,12 @@ The `dashboard` app gives a quick overview of recruitment activity scoped to the
 
 It shows:
 
-- Candidate count
+- Candidates in the pipeline (distinct people with a visible application)
 - Interviews this week
 - Offers sent
-- Hired candidates
-- Pipeline breakdown
-- Roles with the most candidates
+- Hires
+- Pipeline breakdown by application status
+- Roles with the most applications
 - Upcoming interviews
 
 ### Uploads
@@ -80,11 +92,11 @@ The import process:
 3. System validates each row.
 4. User previews valid and invalid rows.
 5. User confirms import.
-6. Only valid rows are created as candidates.
-7. If a Recruiter confirms the import, the imported candidates are assigned to that Recruiter.
-8. If HR Admin confirms the import, candidates stay unassigned until they are assigned out.
+6. Each valid row becomes one application. A new candidate is created only if the email is not already in the company; otherwise the application is added to the existing person.
+7. If a Recruiter confirms the import, the imported applications are assigned to that Recruiter.
+8. If HR Admin confirms the import, applications stay unassigned until they are assigned out.
 
-This process does not create user accounts for candidates. It only creates internal candidate records for the recruitment team.
+This process does not create user accounts for candidates. It only creates internal candidate and application records for the recruitment team.
 
 ### Reports
 
@@ -92,13 +104,13 @@ The `reports` app provides operational recruitment summaries.
 
 It currently reports:
 
-- Total candidates
-- Active candidates
+- Total candidates (distinct people)
+- Active applications
 - Offers
-- Hired candidates
-- Rejected candidates
-- Candidates by status
-- Candidates by role
+- Hires
+- Rejections
+- Applications by status
+- Applications by role
 - Interviews scheduled for the week
 
 ## 3. User Roles and Responsibilities
@@ -122,54 +134,57 @@ They can:
 - View reports.
 - View jobs.
 - Create and update job openings.
-- Add candidates.
+- Add candidates and applications.
 - Import candidates.
 - View candidate profiles.
-- Update candidate status.
-- Add candidate notes.
+- Update application status.
+- Add application notes.
 - Schedule interviews.
 
 Main workflow:
 
 1. Go to Jobs and confirm the role exists.
 2. Add or import candidates.
-3. Open each candidate profile.
-4. Update status as the candidate progresses.
+3. Open each application.
+4. Update status as the application progresses.
 5. Add notes after screening or communication.
 6. Schedule interviews.
 7. Review reports to monitor progress.
 
 Visibility:
 
-- Recruiters see candidates assigned to them inside their company.
-- Recruiters also see unassigned candidates waiting for triage inside their company.
-- Recruiters do not see candidates assigned to another recruiter.
+- Recruiters see applications assigned to them inside their company.
+- Recruiters also see unassigned applications waiting for triage inside their company.
+- Recruiters do not see applications assigned to another recruiter.
+- Recruiters can see every candidate's person-level details in their company, so they can find existing people. A candidate profile only lists the applications that recruiter can see.
 
 ### Hiring Manager
 
-Hiring Managers mainly review company hiring activity without managing candidate records directly.
+Hiring Managers review the applications for the jobs they manage, without managing records directly.
 
 They can:
 
-- View dashboard.
-- View reports.
+- View dashboard and reports, limited to the jobs they manage.
 - View jobs and job details.
+- View applications for jobs where they are the job's Hiring Manager (read-only).
+- Add notes to those applications.
 
-They cannot currently:
+They cannot:
 
-- Add candidates.
-- Import candidates.
-- Update candidate status.
-- Add notes.
+- Add or import candidates.
+- Open candidate profiles.
+- Update application status or edit applications.
 - Schedule interviews.
+- See applications for jobs they do not manage.
 
-Hiring Managers should only see the navigation that matches this: Dashboard, Jobs, and Reports.
+Hiring Managers see Dashboard, Jobs, Applications, and Reports in the navigation.
 
 Main workflow:
 
-1. Go to Dashboard to understand company hiring activity.
-2. Go to Jobs to review company roles.
-3. Use Reports to understand candidate volume and status.
+1. Go to Dashboard to see activity on their jobs.
+2. Open Applications to review candidates for their jobs.
+3. Add notes with feedback for the recruiters.
+4. Use Reports to understand volume and status.
 
 ### HR Admin
 
@@ -182,39 +197,38 @@ Main workflow:
 1. Create and maintain job openings.
 2. Monitor recruitment activity.
 3. Support recruiters with imports and candidate records.
-4. Assign unassigned candidates to recruiters.
+4. Assign unassigned applications to recruiters.
 5. Use reports to review hiring outcomes.
 
 Visibility:
 
 - HR Admin sees the full recruitment workspace for their own company.
-- HR Admin does not see another company's jobs, candidates, offers, reports, or imports.
+- HR Admin does not see another company's jobs, candidates, applications, reports, or imports.
 
 ## 4. Data Flow
 
 ### Job Opening Flow
 
 1. User creates a job opening.
-2. Job is saved to the user's company with title, department, location, employment type, deadline, and description.
+2. Job is saved to the user's company with title, department, location, employment type, deadline, description, and an optional Hiring Manager (a Hiring Manager from the same company).
 3. On first create, the user chooses either `Create job` or `Save draft`.
-4. Draft jobs are for preparation and do not appear in the candidate form.
-5. Open jobs are active and available for candidate assignment.
+4. Draft jobs are for preparation and cannot be chosen for new applications.
+5. Open jobs are active and can receive applications.
 6. Existing jobs can later be changed to Draft, Open, On hold, or Closed.
-7. When a candidate is linked to a job, the candidate's `position_applied_for` is set from the job title.
-8. If a job title changes, linked candidates are updated to match the new title.
+7. Applications point at the job, so a renamed job shows its new title everywhere.
 
-### Candidate Flow
+### Candidate and Application Flow
 
-1. Candidate is created manually or through import inside a company workspace.
-2. Candidate is linked to a job where possible.
-3. Candidate may be assigned to a recruiter.
-4. Candidate starts with a pipeline status.
-5. Recruiter updates status over time.
-6. Notes are added to capture context.
-7. Interviews are scheduled from the candidate profile.
-8. Candidate eventually reaches an outcome such as hired or rejected.
+1. A candidate (the person) is created manually or through import inside a company workspace, or an existing person is reused by email.
+2. Each application links the candidate to one job, or keeps the imported position text when no open job matched.
+3. The application may be assigned to a recruiter.
+4. The application starts with a pipeline status.
+5. The recruiter updates the status over time.
+6. Notes are added to the application to capture context, and each note records its author.
+7. Interviews are scheduled from the application page.
+8. The application eventually reaches an outcome such as hired or rejected. The same person can be rejected for one job and still be in progress for another.
 
-Candidate statuses:
+Application statuses:
 
 - Applied
 - Screening
@@ -226,9 +240,9 @@ Candidate statuses:
 
 ### Interview Flow
 
-1. Recruiter opens a candidate profile.
-2. Recruiter fills in interview title, date/time, location, interviewer, status, and notes.
-3. Interview is attached to the candidate.
+1. Recruiter opens an application.
+2. Recruiter fills in interview title, date/time, location, interviewer (a user from the same company), status, and notes.
+3. Interview is attached to the application.
 4. Dashboard and reports use interview data for upcoming activity.
 
 Interview statuses:
@@ -246,18 +260,22 @@ Required candidate fields:
 - Full name
 - Email
 - Phone
-- Position applied for
+- Position
 - Years of experience
 - Status
+
+The position is matched against the company's open jobs by title, ignoring case. If nothing matches, the application keeps the position text instead of a job.
 
 The system validates:
 
 - Required fields
 - Valid email format
-- Duplicate emails inside the uploaded file
-- Existing candidate emails already in the database
+- The same email and position appearing more than once in the file (the same email with different positions is allowed and becomes one candidate with several applications)
+- An existing application for the same candidate and position
 - Valid experience number
-- Valid candidate status
+- Valid application status
+
+An email that already belongs to a candidate in the company is not an error. The row adds an application to that person, and their stored details are kept.
 
 Import limit:
 
@@ -277,7 +295,8 @@ Recommended mental model:
 
 - Dashboard: "What is happening?"
 - Jobs: "What roles are we hiring for?"
-- Candidates: "Who is in the pipeline?"
+- Applications: "Who is in the pipeline, and for which job?"
+- Candidates: "Who are the people in our talent pool?"
 - Reports: "What are the outcomes and trends?"
 
 Import is treated as a utility action for recruiters and HR admins, not a primary navigation item.
@@ -292,10 +311,10 @@ The application already has:
 - Clear role-based access.
 - Company-specific workspaces.
 - Role-aware dashboard and reports.
-- Candidate ownership through assigned recruiters.
-- Candidate pipeline tracking.
-- Job opening management.
-- Candidate notes.
+- Application ownership through assigned recruiters.
+- Application pipeline tracking, with one person able to apply to several jobs.
+- Job opening management with a named Hiring Manager.
+- Application notes with authors.
 - Interview scheduling.
 - Excel import preview before confirmation.
 - Basic dashboard and reports.
@@ -459,11 +478,11 @@ The best next tasks are:
 
 ### Recruitment
 
-- `recruitment/models.py`: job, candidate, note, and interview models.
-- `recruitment/forms.py`: forms for candidates, jobs, notes, interviews, and statuses.
+- `recruitment/models.py`: job, candidate, application, application note, and interview models.
+- `recruitment/forms.py`: forms for candidates, applications, jobs, notes, interviews, and statuses.
 - `recruitment/views.py`: recruitment page handlers.
 - `recruitment/services.py`: create/update business logic.
-- `recruitment/selectors.py`: recruitment query helpers.
+- `recruitment/selectors.py`: recruitment query helpers, including `application_scope` and `candidate_scope`, which decide what each role can see.
 - `recruitment/templates/recruitment/base.html`: shared application shell.
 - `recruitment/static/recruitment/css/app.css`: application styling.
 

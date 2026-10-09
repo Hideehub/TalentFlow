@@ -7,7 +7,7 @@
     <div>
         <p class="section-kicker mb-1">Recruitment workspace</p>
         <h1 class="page-title mb-1">Candidates</h1>
-        <p class="text-secondary mb-0">A clean working list for your recruitment pipeline.</p>
+        <p class="text-secondary mb-0">The people in your talent pool. Their applications are listed on each profile.</p>
     </div>
     <div class="d-flex flex-wrap gap-2 justify-content-end">
         <a class="btn btn-soft" href="{% url 'uploads:candidate_import' %}">Import Excel</a>
@@ -17,7 +17,7 @@
 
 <form method="get" class="surface p-3 mb-3">
     <div class="row g-2 align-items-end">
-        <div class="col-lg-6">
+        <div class="col-lg-9">
             <label class="form-label" for="candidate-search">Search</label>
             <input
                 class="form-control"
@@ -25,17 +25,8 @@
                 name="q"
                 type="search"
                 value="{{ query }}"
-                placeholder="Name, email, phone, or position"
+                placeholder="Name, email, or phone"
             >
-        </div>
-        <div class="col-lg-3">
-            <label class="form-label" for="candidate-status">Status</label>
-            <select class="form-select" id="candidate-status" name="status">
-                <option value="">All statuses</option>
-                {% for value, label in candidate_statuses %}
-                    <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
         </div>
         <div class="col-lg-3 d-flex gap-2">
             <button class="btn btn-primary flex-fill" type="submit">Filter</button>
@@ -50,10 +41,9 @@
             <thead class="table-light">
                 <tr>
                     <th>Name</th>
-                    <th>Position</th>
-                    <th>Owner</th>
-                    <th>Status</th>
-                    <th>Date applied</th>
+                    <th>Phone</th>
+                    <th>Source</th>
+                    <th>Added</th>
                     <th class="text-end">Action</th>
                 </tr>
             </thead>
@@ -64,23 +54,16 @@
                             <div class="fw-semibold">{{ candidate.full_name }}</div>
                             <div class="small text-secondary">{{ candidate.email }}</div>
                         </td>
-                        <td>{{ candidate.position_applied_for }}</td>
-                        <td>
-                            {% if candidate.assigned_recruiter %}
-                                {{ candidate.assigned_recruiter.get_full_name|default:candidate.assigned_recruiter.username }}
-                            {% else %}
-                                <span class="text-secondary">Unassigned</span>
-                            {% endif %}
-                        </td>
-                        <td><span class="status-badge status-{{ candidate.status }}">{{ candidate.get_status_display }}</span></td>
-                        <td>{{ candidate.date_applied }}</td>
+                        <td>{{ candidate.phone }}</td>
+                        <td>{{ candidate.get_source_display }}</td>
+                        <td>{{ candidate.created_at|date:"M j, Y" }}</td>
                         <td class="text-end">
                             <a class="btn btn-sm btn-outline-primary" href="{% url 'recruitment:candidate_detail' candidate.id %}">View</a>
                         </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center text-secondary py-5 empty-state">
+                        <td colspan="5" class="text-center text-secondary py-5 empty-state">
                             No candidates yet.
                             <a href="{% url 'recruitment:candidate_create' %}">Add the first one</a>.
                         </td>

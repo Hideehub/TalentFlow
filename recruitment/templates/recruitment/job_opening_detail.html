@@ -30,6 +30,15 @@
 
                 <dt class="col-sm-5 text-secondary">Deadline</dt>
                 <dd class="col-sm-7">{{ job.application_deadline|default:"Not set" }}</dd>
+
+                <dt class="col-sm-5 text-secondary">Hiring manager</dt>
+                <dd class="col-sm-7">
+                    {% if job.hiring_manager %}
+                        {{ job.hiring_manager.get_full_name|default:job.hiring_manager.username }}
+                    {% else %}
+                        Not set
+                    {% endif %}
+                </dd>
             </dl>
 
             {% if job.description %}
@@ -43,8 +52,8 @@
     <div class="col-lg-7">
         <div class="surface overflow-hidden">
             <div class="p-4 border-bottom">
-                <h2 class="h5 mb-1">Candidates</h2>
-                <p class="text-secondary mb-0">{{ job.candidates.count }} candidate{{ job.candidates.count|pluralize }} for this role.</p>
+                <h2 class="h5 mb-1">Applications</h2>
+                <p class="text-secondary mb-0">{{ applications|length }} application{{ applications|length|pluralize }} you can see for this role.</p>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
@@ -56,19 +65,19 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for candidate in job.candidates.all %}
+                        {% for application in applications %}
                             <tr>
                                 <td>
-                                    <div class="fw-semibold">{{ candidate.full_name }}</div>
-                                    <div class="small text-secondary">{{ candidate.email }}</div>
+                                    <div class="fw-semibold">{{ application.candidate.full_name }}</div>
+                                    <div class="small text-secondary">{{ application.candidate.email }}</div>
                                 </td>
-                                <td><span class="status-badge status-{{ candidate.status }}">{{ candidate.get_status_display }}</span></td>
+                                <td><span class="status-badge status-{{ application.status }}">{{ application.get_status_display }}</span></td>
                                 <td class="text-end">
-                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'recruitment:candidate_detail' candidate.id %}">View</a>
+                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'recruitment:application_detail' application.id %}">View</a>
                                 </td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="3" class="text-center text-secondary py-5">No candidates assigned yet.</td></tr>
+                            <tr><td colspan="3" class="text-center text-secondary py-5">No applications yet.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

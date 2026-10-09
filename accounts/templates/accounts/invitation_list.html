@@ -1,0 +1,76 @@
+{% extends "recruitment/base.html" %}
+
+{% block title %}Team | TalentFlow{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <p class="section-kicker mb-1">Team</p>
+    <h1 class="page-title mb-1">Invite teammates</h1>
+    <p class="text-secondary mb-0">Create an invite, then copy the link and send it to your teammate. Links expire after 7 days.</p>
+</div>
+
+<form method="post" class="surface p-3 mb-3">
+    {% csrf_token %}
+    <div class="row g-2 align-items-end">
+        <div class="col-lg-6">
+            <label class="form-label" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+            {{ form.email }}
+            {% if form.email.errors %}
+                <div class="text-danger small mt-1">{{ form.email.errors|striptags }}</div>
+            {% endif %}
+        </div>
+        <div class="col-lg-3">
+            <label class="form-label" for="{{ form.role.id_for_label }}">{{ form.role.label }}</label>
+            {{ form.role }}
+            {% if form.role.errors %}
+                <div class="text-danger small mt-1">{{ form.role.errors|striptags }}</div>
+            {% endif %}
+        </div>
+        <div class="col-lg-3">
+            <button class="btn btn-primary w-100" type="submit">Create invite</button>
+        </div>
+    </div>
+</form>
+
+<div class="surface overflow-hidden">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Invite link</th>
+                    <th>Expires</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for invitation, link in invitations %}
+                    <tr>
+                        <td>{{ invitation.email }}</td>
+                        <td>{{ invitation.role }}</td>
+                        <td>
+                            {% if invitation.is_expired %}
+                                <span class="text-secondary">Expired</span>
+                            {% else %}
+                                <input class="form-control form-control-sm" type="text" value="{{ link }}" readonly onclick="this.select()" aria-label="Invite link for {{ invitation.email }}">
+                            {% endif %}
+                        </td>
+                        <td>{{ invitation.expires_at|date:"M j, Y H:i" }}</td>
+                        <td class="text-end">
+                            <form method="post" action="{% url 'accounts:invitation_revoke' invitation.id %}">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-soft" type="submit">Revoke</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-secondary py-4">No pending invites.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "recruitment/base.html" %}
+
+{% block title %}Applications | TalentFlow{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <p class="section-kicker mb-1">Recruitment workspace</p>
+        <h1 class="page-title mb-1">Applications</h1>
+        <p class="text-secondary mb-0">Every candidate's application, one row per job.</p>
+    </div>
+    {% if can_manage_recruitment %}
+        <div class="d-flex flex-wrap gap-2 justify-content-end">
+            <a class="btn btn-soft" href="{% url 'uploads:candidate_import' %}">Import Excel</a>
+            <a class="btn btn-primary" href="{% url 'recruitment:candidate_create' %}">Add candidate</a>
+        </div>
+    {% endif %}
+</div>
+
+<form method="get" class="surface p-3 mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-lg-6">
+            <label class="form-label" for="application-search">Search</label>
+            <input
+                class="form-control"
+                id="application-search"
+                name="q"
+                type="search"
+                value="{{ query }}"
+                placeholder="Name, email, phone, or position"
+            >
+        </div>
+        <div class="col-lg-3">
+            <label class="form-label" for="application-status">Status</label>
+            <select class="form-select" id="application-status" name="status">
+                <option value="">All statuses</option>
+                {% for value, label in application_statuses %}
+                    <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-lg-3 d-flex gap-2">
+            <button class="btn btn-primary flex-fill" type="submit">Filter</button>
+            <a class="btn btn-soft flex-fill" href="{% url 'recruitment:application_list' %}">Reset</a>
+        </div>
+    </div>
+</form>
+
+<div class="surface overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Candidate</th>
+                    <th>Position</th>
+                    <th>Owner</th>
+                    <th>Status</th>
+                    <th>Date applied</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for application in applications %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ application.candidate.full_name }}</div>
+                            <div class="small text-secondary">{{ application.candidate.email }}</div>
+                        </td>
+                        <td>
+                            {{ application.position }}
+                            {% if not application.job %}<div class="small text-secondary">Imported, no matching job</div>{% endif %}
+                        </td>
+                        <td>
+                            {% if application.assigned_recruiter %}
+                                {{ application.assigned_recruiter.get_full_name|default:application.assigned_recruiter.username }}
+                            {% else %}
+                                <span class="text-secondary">Unassigned</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="status-badge status-{{ application.status }}">{{ application.get_status_display }}</span></td>
+                        <td>{{ application.date_applied }}</td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'recruitment:application_detail' application.id %}">View</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-secondary py-5 empty-state">
+                            No applications yet.
+                            {% if can_manage_recruitment %}
+                                <a href="{% url 'recruitment:candidate_create' %}">Add the first candidate</a>.
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

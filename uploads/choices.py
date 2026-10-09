@@ -17,7 +17,7 @@ CANDIDATE_HEADER_ALIASES = {
         "mobile",
         "mobile number",
     ),
-    "position_applied_for": (
+    "position": (
         "position_applied_for",
         "position applied for",
         "role applied",

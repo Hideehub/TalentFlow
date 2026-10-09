@@ -29,6 +29,10 @@
                     <span class="side-icon">J</span>
                     <span>Jobs</span>
                 </a>
+                <a class="side-link {% if request.resolver_match.namespace == 'recruitment' and 'application' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'recruitment:application_list' %}">
+                    <span class="side-icon">A</span>
+                    <span>Applications</span>
+                </a>
                 {% if can_manage_recruitment %}
                     <a class="side-link {% if request.resolver_match.namespace == 'recruitment' and 'candidate' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'recruitment:candidate_list' %}">
                         <span class="side-icon">C</span>
@@ -39,6 +43,12 @@
                     <span class="side-icon">R</span>
                     <span>Reports</span>
                 </a>
+                {% if can_manage_team %}
+                    <a class="side-link {% if request.resolver_match.namespace == 'accounts' %}active{% endif %}" href="{% url 'accounts:invitation_list' %}">
+                        <span class="side-icon">T</span>
+                        <span>Team</span>
+                    </a>
+                {% endif %}
             </nav>
 
             {% if request.user.is_authenticated %}
@@ -96,12 +106,16 @@
                                 Dashboard
                             {% elif request.resolver_match.namespace == 'recruitment' and 'job' in request.resolver_match.url_name %}
                                 Jobs
+                            {% elif request.resolver_match.namespace == 'recruitment' and 'application' in request.resolver_match.url_name %}
+                                Applications
                             {% elif request.resolver_match.namespace == 'recruitment' and 'candidate' in request.resolver_match.url_name %}
                                 Candidates
                             {% elif request.resolver_match.namespace == 'reports' %}
                                 Reports
                             {% elif request.resolver_match.namespace == 'uploads' %}
                                 Import
+                            {% elif request.resolver_match.namespace == 'accounts' %}
+                                Team
                             {% else %}
                                 Home
                             {% endif %}
