@@ -1,11 +1,15 @@
+from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import get_user_model, login
 from django.core.exceptions import PermissionDenied
-from django.shortcuts import redirect, render
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.http import require_POST
 
 from .choices import ROLE_HR_ADMIN
-from .decorators import role_required
+from .decorators import block_demo_users, role_required
+from .demo import DEMO_COMPANY_NAME, DEMO_USERS
 from .forms import InvitationAcceptForm, InvitationForm, SignUpForm
 from .selectors import invitation_get, invitation_get_by_token, invitation_list
 from .services import (
@@ -31,6 +35,7 @@ def signup_view(request):
 
 
 @role_required(ROLE_HR_ADMIN)
+@block_demo_users
 def invitation_list_view(request):
     company = get_user_company(request.user)
     if company is None:
@@ -61,6 +66,7 @@ def invitation_list_view(request):
 
 
 @role_required(ROLE_HR_ADMIN)
+@block_demo_users
 def invitation_revoke_view(request, invitation_id):
     invitation = invitation_get(invitation_id, user=request.user)
 
@@ -93,3 +99,17 @@ def invitation_accept_view(request, token):
         "accounts/invitation_accept.html",
         {"form": form, "invitation": invitation},
     )
+
+
+@require_POST
+def demo_login_view(request, role):
+    """One-click login for the public demo. Demo users have no usable password."""
+    if not settings.DEMO_MODE or role not in DEMO_USERS:
+        raise Http404
+    user = get_object_or_404(
+        get_user_model(),
+        username=DEMO_USERS[role]["username"],
+        profile__company__name=DEMO_COMPANY_NAME,
+    )
+    login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+    return redirect("dashboard:home")

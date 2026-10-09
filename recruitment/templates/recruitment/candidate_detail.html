@@ -51,13 +51,17 @@
             {% else %}
                 <p class="text-secondary">No resume uploaded yet.</p>
             {% endif %}
-            <form method="post" action="{% url 'recruitment:candidate_resume_upload' candidate.id %}" enctype="multipart/form-data">
-                {% csrf_token %}
-                <label class="form-label" for="{{ resume_form.resume.id_for_label }}">{% if candidate.resume %}Replace resume{% else %}Upload resume{% endif %}</label>
-                {{ resume_form.resume }}
-                <div class="form-text">{{ resume_form.resume.help_text }}</div>
-                <button class="btn btn-primary mt-3" type="submit">Upload</button>
-            </form>
+            {% if is_demo_user %}
+                <p class="small text-secondary mb-0">Resume uploads are disabled in the demo.</p>
+            {% else %}
+                <form method="post" action="{% url 'recruitment:candidate_resume_upload' candidate.id %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <label class="form-label" for="{{ resume_form.resume.id_for_label }}">{% if candidate.resume %}Replace resume{% else %}Upload resume{% endif %}</label>
+                    {{ resume_form.resume }}
+                    <div class="form-text">{{ resume_form.resume.help_text }}</div>
+                    <button class="btn btn-primary mt-3" type="submit">Upload</button>
+                </form>
+            {% endif %}
         </div>
     </div>
 

@@ -10,31 +10,39 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
-import os
+import dj_database_url
 from dotenv import load_dotenv
+
+from config.env import env_bool, env_list, resume_storage, secret_key
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Local development reads .env; on Render the variables come from the dashboard.
 load_dotenv(BASE_DIR / ".env")
 
+# Every variable is documented in .env.example.
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
+# Off unless explicitly enabled, so a missing variable can never expose debug pages.
+DEBUG = env_bool(os.environ, "DEBUG", default=False)
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("SECRET_KEY")
+# Required whenever DEBUG is off: startup fails instead of running with a known key.
+SECRET_KEY = secret_key(os.environ, debug=DEBUG)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "True").lower() in {"1", "true", "yes", "on"}
+ALLOWED_HOSTS = env_list(os.environ, "ALLOWED_HOSTS", "localhost,127.0.0.1")
+CSRF_TRUSTED_ORIGINS = env_list(os.environ, "CSRF_TRUSTED_ORIGINS")
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-    if host.strip()
-]
+# Render sets this automatically for web services.
+RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
+
+# Public demo: shows one-click demo logins and locks demo accounts down.
+DEMO_MODE = env_bool(os.environ, "DEMO_MODE", default=False)
 
 
 # Application definition
@@ -56,6 +64,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Serves collected static files efficiently straight from gunicorn.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -88,16 +98,27 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        "NAME": os.getenv("DB_NAME"),
-        "USER": os.getenv("DB_USER"),
-        "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST"),
-        "PORT": os.getenv("DB_PORT"),
+# DATABASE_URL (e.g. Neon) wins; otherwise the local DB_* variables are used.
+if os.environ.get("DATABASE_URL"):
+    DATABASES = {
+        "default": dj_database_url.parse(
+            os.environ["DATABASE_URL"],
+            conn_max_age=600,
+            conn_health_checks=True,
+            ssl_require=env_bool(os.environ, "DATABASE_SSL_REQUIRE", default=not DEBUG),
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            "NAME": os.getenv("DB_NAME"),
+            "USER": os.getenv("DB_USER"),
+            "PASSWORD": os.getenv("DB_PASSWORD"),
+            "HOST": os.getenv("DB_HOST"),
+            "PORT": os.getenv("DB_PORT"),
+        }
+    }
 
 
 # Password validation
@@ -135,21 +156,43 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Resumes are private: they live outside any public media/static root and are only
-# served through a view that checks the user's scope. Swap the "resumes" backend
-# (e.g. to S3) here without touching the model.
+# served through a view that checks the user's scope. With RESUMES_S3_* set they go to
+# a private S3/R2 bucket instead; the model's storage callable doesn't change.
 PRIVATE_MEDIA_ROOT = BASE_DIR / "private_media"
 
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-    "resumes": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-        "OPTIONS": {"location": PRIVATE_MEDIA_ROOT},
-    },
+    # Hashed, compressed file names so browsers can cache static files forever.
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    "resumes": resume_storage(os.environ, local_location=PRIVATE_MEDIA_ROOT),
 }
 
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'dashboard:home'
 LOGOUT_REDIRECT_URL = 'accounts:login'
+
+
+# Production security. Render terminates TLS and forwards the original scheme.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = env_bool(os.environ, "SECURE_SSL_REDIRECT", default=True)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # Start short; raise (e.g. to 31536000) once HTTPS is confirmed working everywhere.
+    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "3600"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    # Preload is a long-term commitment that needs a max-age of a year or more, so it
+    # stays off until HSTS has run for a while; check --deploy's W021 is expected.
+    SECURE_HSTS_PRELOAD = env_bool(os.environ, "SECURE_HSTS_PRELOAD", default=False)
+    if not SECURE_HSTS_PRELOAD:
+        SILENCED_SYSTEM_CHECKS = ["security.W021"]
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": os.environ.get("LOG_LEVEL", "INFO")},
+}

@@ -4,7 +4,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from accounts.choices import DASHBOARD_ROLES, RECRUITMENT_ROLES
-from accounts.decorators import company_required, role_required
+from accounts.decorators import block_demo_users, company_required, role_required
 from accounts.tenancy import get_user_company
 
 from .choices import APPLICATION_STATUS, JOB_STATUS
@@ -269,6 +269,7 @@ def candidate_detail_view(request, candidate_id):
 
 
 @role_required(*RECRUITMENT_ROLES)
+@block_demo_users
 def candidate_resume_upload_view(request, candidate_id):
     candidate = candidate_get(candidate_id, user=request.user)
 
