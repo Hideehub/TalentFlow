@@ -36,6 +36,29 @@
                 <dd class="col-sm-7">{{ candidate.created_at }}</dd>
             </dl>
         </div>
+
+        <div class="surface p-4 mt-4">
+            <h2 class="h5 mb-3">Resume</h2>
+            {% if candidate.resume %}
+                <p class="mb-1">
+                    {% if can_download_resume %}
+                        <a href="{% url 'recruitment:candidate_resume' candidate.id %}">{{ candidate.resume_original_name|default:"Download resume" }}</a>
+                    {% else %}
+                        Resume on file. You can download it once you work on one of their applications.
+                    {% endif %}
+                </p>
+                <p class="small text-secondary">Uploaded {{ candidate.resume_uploaded_at }}</p>
+            {% else %}
+                <p class="text-secondary">No resume uploaded yet.</p>
+            {% endif %}
+            <form method="post" action="{% url 'recruitment:candidate_resume_upload' candidate.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <label class="form-label" for="{{ resume_form.resume.id_for_label }}">{% if candidate.resume %}Replace resume{% else %}Upload resume{% endif %}</label>
+                {{ resume_form.resume }}
+                <div class="form-text">{{ resume_form.resume.help_text }}</div>
+                <button class="btn btn-primary mt-3" type="submit">Upload</button>
+            </form>
+        </div>
     </div>
 
     <div class="col-lg-7">

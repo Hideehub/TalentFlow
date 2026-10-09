@@ -1,11 +1,12 @@
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from accounts.choices import ROLE_HIRING_MANAGER, ROLE_HR_ADMIN, ROLE_RECRUITER
 from accounts.decorators import user_has_role
 from accounts.tenancy import get_user_company
 
-from .models import Application, Candidate, Interview, JobOpening
+from .models import Application, Candidate, Interview, InterviewFeedback, JobOpening
 
 
 def _is_hr_admin(user):
@@ -22,32 +23,51 @@ def _is_hiring_manager(user):
     return user and user.is_authenticated and user_has_role(user, (ROLE_HIRING_MANAGER,))
 
 
-def application_scope(user):
+def _role_filter(user):
+    """What a user's role lets them work on. None means the whole company."""
+    if _is_hr_admin(user):
+        return None
+    if _is_recruiter(user):
+        return Q(assigned_recruiter=user) | Q(assigned_recruiter__isnull=True)
+    if _is_hiring_manager(user):
+        return Q(job__hiring_manager=user)
+    return Q(pk__in=[])
+
+
+def _company_applications(user):
     applications = Application.objects.select_related(
         "candidate", "job", "assigned_recruiter"
     )
-    company = get_user_company(user)
-
     if user and user.is_authenticated and user.is_superuser:
         return applications
-
+    company = get_user_company(user)
     if not company:
         return applications.none()
+    return applications.filter(candidate__company=company)
 
-    applications = applications.filter(candidate__company=company)
 
-    if _is_hr_admin(user):
+def application_manage_scope(user):
+    """Applications the user may change (status, edit, interviews, notes) by role."""
+    applications = _company_applications(user)
+    if user and user.is_authenticated and user.is_superuser:
         return applications
+    role_filter = _role_filter(user)
+    return applications if role_filter is None else applications.filter(role_filter)
 
-    if _is_recruiter(user):
-        return applications.filter(
-            Q(assigned_recruiter=user) | Q(assigned_recruiter__isnull=True)
-        )
 
-    if _is_hiring_manager(user):
-        return applications.filter(job__hiring_manager=user)
-
-    return applications.none()
+def application_scope(user):
+    """Applications the user may view: their role's scope, or ones they interview for."""
+    applications = _company_applications(user)
+    if not (user and user.is_authenticated):
+        return applications.none()
+    if user.is_superuser:
+        return applications
+    role_filter = _role_filter(user)
+    if role_filter is None:
+        return applications
+    # A subquery rather than a join, so counts and aggregates don't see duplicate rows.
+    interviewing = Q(id__in=Interview.objects.filter(interviewer=user).values("application_id"))
+    return applications.filter(role_filter | interviewing)
 
 
 def candidate_scope(user):
@@ -118,12 +138,67 @@ def application_get(application_id, *, user=None):
     return get_object_or_404(application_scope(user), id=application_id)
 
 
+def application_get_for_change(application_id, *, user=None):
+    return get_object_or_404(application_manage_scope(user), id=application_id)
+
+
+def application_can_change(application, *, user=None):
+    return application_manage_scope(user).filter(pk=application.pk).exists()
+
+
+def application_status_changes(application):
+    return application.status_changes.select_related("changed_by").order_by("created_at")
+
+
 def application_notes(application):
     return application.notes.select_related("author").order_by("-created_at")
 
 
 def application_interviews(application):
-    return application.interviews.select_related("interviewer").order_by("scheduled_at")
+    return application.interviews.select_related("interviewer", "feedback").order_by(
+        "scheduled_at"
+    )
+
+
+def _sees_all_feedback(application, user):
+    return (
+        _is_hr_admin(user)
+        or application.assigned_recruiter_id == user.id
+        or (application.job_id is not None and application.job.hiring_manager_id == user.id)
+    )
+
+
+def application_feedback(application, *, user):
+    """Feedback the user may read on this application.
+
+    HR Admins, the owning recruiter and the job's hiring manager see everything. An
+    interviewer sees everyone's feedback only after submitting their own, so earlier
+    opinions can't anchor theirs. Anyone else sees none.
+    """
+    feedback = InterviewFeedback.objects.filter(interview__application=application).select_related(
+        "author", "interview"
+    ).order_by("created_at")
+    if _sees_all_feedback(application, user) or feedback.filter(author=user).exists():
+        return feedback
+    return feedback.none()
+
+
+def interview_get_for_feedback(interview_id, *, user):
+    """Only the assigned interviewer can give feedback on an interview."""
+    return get_object_or_404(
+        Interview.objects.select_related("application__candidate", "application__job"),
+        id=interview_id,
+        interviewer=user,
+    )
+
+
+def interviews_awaiting_feedback(user, limit=5):
+    return (
+        Interview.objects.select_related("application__candidate")
+        .filter(interviewer=user, feedback__isnull=True, scheduled_at__lte=timezone.now())
+        .exclude(status="cancelled")
+        .order_by("scheduled_at")[:limit]
+    )
 
 
 def candidate_list(*, query="", user=None):
@@ -141,6 +216,23 @@ def candidate_list(*, query="", user=None):
 
 def candidate_get(candidate_id, *, user=None):
     return get_object_or_404(candidate_scope(user), id=candidate_id)
+
+
+def candidate_resume_scope(user):
+    """Candidates whose resume the user may download.
+
+    HR Admins: everyone in the company. Everyone else (recruiters, hiring managers,
+    interviewers) only people with an application they can see. Recruiters can view
+    every person's basic details, but not their resume, without such an application.
+    """
+    candidates = candidate_scope(user)
+    if _is_hr_admin(user):
+        return candidates
+    return candidates.filter(id__in=application_scope(user).values("candidate_id"))
+
+
+def candidate_can_download_resume(candidate, *, user=None):
+    return candidate_resume_scope(user).filter(pk=candidate.pk).exists()
 
 
 def candidate_applications(candidate, *, user=None):

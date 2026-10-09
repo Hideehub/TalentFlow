@@ -1,4 +1,8 @@
+import uuid
+from pathlib import Path
+
 from django.conf import settings
+from django.core.files.storage import storages
 from django.db import models
 from django.db.models import Q
 from django.db.models.functions import Lower
@@ -9,6 +13,7 @@ from .choices import (
     APPLICATION_STATUS,
     CANDIDATE_SOURCE,
     EMPLOYMENT_TYPE,
+    FEEDBACK_RECOMMENDATION,
     INTERVIEW_STATUS,
     JOB_STATUS,
 )
@@ -50,6 +55,16 @@ class JobOpening(BaseModel):
         return f"{self.title} - {self.department}"
 
 
+def resume_storage():
+    return storages["resumes"]
+
+
+def resume_upload_to(candidate, filename):
+    # A random name, so the stored path never contains user-controlled text.
+    extension = Path(filename).suffix.lower()
+    return f"resumes/{candidate.company_id}/{candidate.id}/{uuid.uuid4().hex}{extension}"
+
+
 class Candidate(BaseModel):
     """The person. What they applied for lives on Application."""
 
@@ -67,6 +82,14 @@ class Candidate(BaseModel):
         choices=CANDIDATE_SOURCE,
         default="other",
     )
+    resume = models.FileField(
+        storage=resume_storage,
+        upload_to=resume_upload_to,
+        max_length=255,
+        blank=True,
+    )
+    resume_original_name = models.CharField(max_length=255, blank=True)
+    resume_uploaded_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = (
@@ -177,3 +200,46 @@ class Interview(BaseModel):
 
     def __str__(self):
         return f"{self.title} - {self.application.candidate.full_name}"
+
+
+class ApplicationStatusChange(BaseModel):
+    """One row per status move; created_at is when it happened."""
+
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="status_changes",
+    )
+    from_status = models.CharField(max_length=20, choices=APPLICATION_STATUS, blank=True)
+    to_status = models.CharField(max_length=20, choices=APPLICATION_STATUS)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="application_status_changes",
+        null=True,
+    )
+
+    class Meta:
+        ordering = ("created_at",)
+
+    def __str__(self):
+        return f"{self.application}: {self.from_status or 'new'} -> {self.to_status}"
+
+
+class InterviewFeedback(BaseModel):
+    interview = models.OneToOneField(
+        Interview,
+        on_delete=models.CASCADE,
+        related_name="feedback",
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="interview_feedback",
+        null=True,
+    )
+    recommendation = models.CharField(max_length=20, choices=FEEDBACK_RECOMMENDATION)
+    comments = models.TextField()
+
+    def __str__(self):
+        return f"Feedback on {self.interview}"

@@ -36,9 +36,17 @@ CANDIDATE_HEADER_ALIASES = {
         "current stage",
         "stage",
     ),
+    "source": (
+        "source",
+        "candidate source",
+        "channel",
+    ),
 }
 
-REQUIRED_CANDIDATE_FIELDS = tuple(CANDIDATE_HEADER_ALIASES)
+OPTIONAL_CANDIDATE_FIELDS = ("source",)
+REQUIRED_CANDIDATE_FIELDS = tuple(
+    field for field in CANDIDATE_HEADER_ALIASES if field not in OPTIONAL_CANDIDATE_FIELDS
+)
 
 MAX_IMPORT_ROWS = 1000
 MAX_UPLOAD_SIZE = 2 * 1024 * 1024

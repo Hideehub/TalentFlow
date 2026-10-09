@@ -100,6 +100,30 @@
 </div>
 
 <div class="surface p-4 mt-4">
+    <h2 class="h5 mb-3">Applications by source</h2>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th class="text-end">Applications</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in source_rows %}
+                    <tr>
+                        <td>{{ row.source }}</td>
+                        <td class="text-end fw-semibold">{{ row.total }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="2" class="text-secondary">No applications yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="surface p-4 mt-4">
     <h2 class="h5 mb-3">Interviews this week</h2>
     <div class="table-responsive">
         <table class="table align-middle mb-0">

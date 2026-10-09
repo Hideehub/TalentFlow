@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import Application, ApplicationNote, Candidate, Interview, JobOpening
+from .models import (
+    Application,
+    ApplicationNote,
+    ApplicationStatusChange,
+    Candidate,
+    Interview,
+    InterviewFeedback,
+    JobOpening,
+)
 
 
 @admin.register(JobOpening)
@@ -25,6 +33,8 @@ class CandidateAdmin(admin.ModelAdmin):
     search_fields = ("full_name", "company__name", "email", "phone")
     list_filter = ("company", "source")
     ordering = ("-created_at",)
+    # Resumes are uploaded and served only through the app's validated, scoped views.
+    exclude = ("resume", "resume_original_name", "resume_uploaded_at")
 
 
 @admin.register(Application)
@@ -66,3 +76,17 @@ class InterviewAdmin(admin.ModelAdmin):
         "interviewer__username",
     )
     ordering = ("scheduled_at",)
+
+
+@admin.register(ApplicationStatusChange)
+class ApplicationStatusChangeAdmin(admin.ModelAdmin):
+    list_display = ("application", "from_status", "to_status", "changed_by", "created_at")
+    list_filter = ("to_status",)
+    ordering = ("-created_at",)
+
+
+@admin.register(InterviewFeedback)
+class InterviewFeedbackAdmin(admin.ModelAdmin):
+    list_display = ("interview", "author", "recommendation", "created_at")
+    list_filter = ("recommendation",)
+    ordering = ("-created_at",)

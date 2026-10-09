@@ -42,6 +42,7 @@
                         <th>Position</th>
                         <th>Experience</th>
                         <th>Status</th>
+                        <th>Source</th>
                         <th>Validation</th>
                     </tr>
                 </thead>
@@ -60,6 +61,7 @@
                             </td>
                             <td>{{ row.years_of_experience }}</td>
                             <td>{{ row.status|title }}</td>
+                            <td>{{ row.source_label|default:"—" }}</td>
                             <td>
                                 {% if row.is_valid %}
                                     <span class="badge text-bg-success">Ready</span>

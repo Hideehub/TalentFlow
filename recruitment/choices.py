@@ -42,3 +42,11 @@ CANDIDATE_SOURCE = [
     ("import", "Excel import"),
     ("other", "Other"),
 ]
+
+
+FEEDBACK_RECOMMENDATION = [
+    ("strong_yes", "Strong yes"),
+    ("yes", "Yes"),
+    ("no", "No"),
+    ("strong_no", "Strong no"),
+]

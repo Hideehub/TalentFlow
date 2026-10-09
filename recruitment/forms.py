@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -6,7 +8,22 @@ from accounts.choices import ROLE_HIRING_MANAGER, ROLE_HR_ADMIN, ROLE_RECRUITER
 from accounts.decorators import user_has_role
 from accounts.tenancy import get_user_company
 
-from .models import Application, ApplicationNote, Candidate, Interview, JobOpening
+from .models import (
+    Application,
+    ApplicationNote,
+    Candidate,
+    Interview,
+    InterviewFeedback,
+    JobOpening,
+)
+
+MAX_RESUME_SIZE = 5 * 1024 * 1024
+# The first bytes each allowed format must start with, so a renamed file is rejected.
+RESUME_SIGNATURES = {
+    ".pdf": b"%PDF-",
+    ".docx": b"PK\x03\x04",
+    ".doc": b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",
+}
 
 
 def _company_users(company):
@@ -209,3 +226,36 @@ class JobOpeningForm(forms.ModelForm):
             _company_users(company).filter(manager_filter).distinct().order_by("first_name", "username")
         )
         self.fields["hiring_manager"].empty_label = "No hiring manager"
+
+
+class InterviewFeedbackForm(forms.ModelForm):
+    class Meta:
+        model = InterviewFeedback
+        fields = ("recommendation", "comments")
+        widgets = {
+            "recommendation": forms.Select(attrs={"class": "form-select"}),
+            "comments": forms.Textarea(attrs={"class": "form-control", "rows": 5}),
+        }
+
+
+class ResumeUploadForm(forms.Form):
+    resume = forms.FileField(
+        help_text="PDF, DOC or DOCX, up to 5 MB.",
+        widget=forms.ClearableFileInput(
+            attrs={"class": "form-control", "accept": ".pdf,.doc,.docx"}
+        ),
+    )
+
+    def clean_resume(self):
+        resume = self.cleaned_data["resume"]
+        extension = Path(resume.name).suffix.lower()
+        if extension not in RESUME_SIGNATURES:
+            raise forms.ValidationError("Please upload a PDF, DOC or DOCX file.")
+        if resume.size > MAX_RESUME_SIZE:
+            raise forms.ValidationError("The resume must be 5 MB or smaller.")
+        signature = RESUME_SIGNATURES[extension]
+        header = resume.read(len(signature))
+        resume.seek(0)
+        if header != signature:
+            raise forms.ValidationError("The file content doesn't match its extension.")
+        return resume

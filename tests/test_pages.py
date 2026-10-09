@@ -45,6 +45,21 @@ def test_every_recruitment_page_renders_for_hr_admin(client, hr_admin, hiring_ma
         assert client.get(url).status_code == 200, url
 
 
+def test_feedback_page_renders_for_the_interviewer(client, hiring_manager, company):
+    application = ApplicationFactory(job=JobOpeningFactory(company=company))
+    interview = Interview.objects.create(
+        application=application,
+        title="Onsite",
+        scheduled_at=timezone.now(),
+        interviewer=hiring_manager,
+    )
+    client.force_login(hiring_manager)
+
+    response = client.get(reverse("recruitment:interview_feedback", args=[interview.id]))
+
+    assert response.status_code == 200
+
+
 def test_dashboard_and_reports_render_for_hiring_manager(client, hiring_manager, company):
     ApplicationFactory(job=JobOpeningFactory(company=company, hiring_manager=hiring_manager))
     client.force_login(hiring_manager)

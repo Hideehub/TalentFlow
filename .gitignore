@@ -8,6 +8,7 @@ __pycache__/
 db.sqlite3
 talentflow_db
 media/
+private_media/
 .coverage
 htmlcov/
 .pytest_cache/

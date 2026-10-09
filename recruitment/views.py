@@ -1,5 +1,6 @@
 from django.contrib import messages
-from django.shortcuts import redirect, render
+from django.http import FileResponse, Http404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from accounts.choices import DASHBOARD_ROLES, RECRUITMENT_ROLES
@@ -12,17 +13,26 @@ from .forms import (
     ApplicationNoteForm,
     ApplicationStatusForm,
     CandidateForm,
+    InterviewFeedbackForm,
     InterviewForm,
     JobOpeningForm,
+    ResumeUploadForm,
 )
 from .selectors import (
+    application_can_change,
+    application_feedback,
     application_get,
+    application_get_for_change,
     application_interviews,
     application_list,
     application_notes,
+    application_status_changes,
     candidate_applications,
+    candidate_can_download_resume,
     candidate_get,
     candidate_list,
+    candidate_resume_scope,
+    interview_get_for_feedback,
     job_opening_applications,
     job_opening_get,
     job_opening_list,
@@ -34,8 +44,10 @@ from .services import (
     application_status_update,
     application_update,
     candidate_create,
+    candidate_resume_upload,
     candidate_update,
     interview_create,
+    interview_feedback_submit,
     job_opening_create,
     job_opening_update,
 )
@@ -87,13 +99,16 @@ def application_detail_view(request, application_id):
             "interview_form": InterviewForm(company=application.candidate.company),
             "notes": application_notes(application),
             "interviews": application_interviews(application),
+            "status_changes": application_status_changes(application),
+            "feedback": application_feedback(application, user=request.user),
+            "can_change": application_can_change(application, user=request.user),
         },
     )
 
 
 @role_required(*RECRUITMENT_ROLES)
 def application_update_view(request, application_id):
-    application = application_get(application_id, user=request.user)
+    application = application_get_for_change(application_id, user=request.user)
     form = ApplicationForm(
         instance=application,
         user=request.user,
@@ -122,11 +137,11 @@ def application_update_view(request, application_id):
 
 @role_required(*RECRUITMENT_ROLES)
 def application_status_update_view(request, application_id):
-    application = application_get(application_id, user=request.user)
+    application = application_get_for_change(application_id, user=request.user)
 
     if request.method == "POST":
         updated_application, form = application_status_update(
-            application=application, data=request.POST
+            application=application, data=request.POST, user=request.user
         )
         if updated_application:
             messages.success(request, "Application status updated.")
@@ -138,7 +153,7 @@ def application_status_update_view(request, application_id):
 
 @role_required(*DASHBOARD_ROLES)
 def application_note_create_view(request, application_id):
-    application = application_get(application_id, user=request.user)
+    application = application_get_for_change(application_id, user=request.user)
 
     if request.method == "POST":
         note, form = application_note_create(
@@ -154,7 +169,7 @@ def application_note_create_view(request, application_id):
 
 @role_required(*RECRUITMENT_ROLES)
 def interview_create_view(request, application_id):
-    application = application_get(application_id, user=request.user)
+    application = application_get_for_change(application_id, user=request.user)
 
     if request.method == "POST":
         interview, form = interview_create(application=application, data=request.POST)
@@ -164,6 +179,28 @@ def interview_create_view(request, application_id):
             messages.error(request, "Please check the interview details.")
 
     return redirect("recruitment:application_detail", application_id=application.id)
+
+
+@role_required(*DASHBOARD_ROLES)
+def interview_feedback_view(request, interview_id):
+    interview = interview_get_for_feedback(interview_id, user=request.user)
+    form = InterviewFeedbackForm(instance=getattr(interview, "feedback", None))
+
+    if request.method == "POST":
+        feedback, form = interview_feedback_submit(
+            interview=interview, data=request.POST, user=request.user
+        )
+        if feedback:
+            messages.success(request, "Feedback saved.")
+            return redirect(
+                "recruitment:application_detail", application_id=interview.application_id
+            )
+
+    return render(
+        request,
+        "recruitment/interview_feedback.html",
+        {"interview": interview, "form": form},
+    )
 
 
 # Candidates (the people)
@@ -225,8 +262,41 @@ def candidate_detail_view(request, candidate_id):
         {
             "candidate": candidate,
             "applications": candidate_applications(candidate, user=request.user),
+            "resume_form": ResumeUploadForm(),
+            "can_download_resume": candidate_can_download_resume(candidate, user=request.user),
         },
     )
+
+
+@role_required(*RECRUITMENT_ROLES)
+def candidate_resume_upload_view(request, candidate_id):
+    candidate = candidate_get(candidate_id, user=request.user)
+
+    if request.method == "POST":
+        updated_candidate, form = candidate_resume_upload(
+            candidate=candidate, data=request.POST, files=request.FILES
+        )
+        if updated_candidate:
+            messages.success(request, "Resume uploaded.")
+        else:
+            messages.error(request, " ".join(form.errors.get("resume", ["Upload failed."])))
+
+    return redirect("recruitment:candidate_detail", candidate_id=candidate.id)
+
+
+@role_required(*DASHBOARD_ROLES)
+def candidate_resume_download_view(request, candidate_id):
+    candidate = get_object_or_404(candidate_resume_scope(request.user), id=candidate_id)
+    if not candidate.resume:
+        raise Http404("No resume uploaded.")
+
+    response = FileResponse(
+        candidate.resume.open("rb"),
+        as_attachment=True,
+        filename=candidate.resume_original_name or "resume",
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @role_required(*RECRUITMENT_ROLES)

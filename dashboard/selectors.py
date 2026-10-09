@@ -5,13 +5,15 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from recruitment.models import Interview
-from recruitment.selectors import application_scope
+# Built on the role-based scope: applications someone only interviews for aren't
+# part of their pipeline numbers.
+from recruitment.selectors import application_manage_scope
 
 
 def dashboard_summary(user=None):
     today = timezone.localdate()
     week_end = today + timedelta(days=7)
-    applications = application_scope(user)
+    applications = application_manage_scope(user)
 
     return {
         "candidate_count": applications.values("candidate").distinct().count(),
@@ -27,12 +29,12 @@ def dashboard_summary(user=None):
 
 
 def candidates_by_status(user=None):
-    return application_scope(user).values("status").annotate(total=Count("id")).order_by("status")
+    return application_manage_scope(user).values("status").annotate(total=Count("id")).order_by("status")
 
 
 def hardest_roles(user=None, limit=5):
     return (
-        application_scope(user)
+        application_manage_scope(user)
         .annotate(position=Coalesce("job__title", "imported_position"))
         .values("position")
         .annotate(total=Count("id"))
@@ -44,7 +46,7 @@ def upcoming_interviews(user=None, limit=5):
     return (
         Interview.objects.select_related("application__candidate")
         .filter(
-            application__in=application_scope(user),
+            application__in=application_manage_scope(user),
             status="scheduled",
             scheduled_at__gte=timezone.now(),
         )

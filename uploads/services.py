@@ -10,8 +10,8 @@ from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
 from accounts.tenancy import get_user_company
-from recruitment.choices import APPLICATION_STATUS
-from recruitment.models import Application, Candidate, JobOpening
+from recruitment.choices import APPLICATION_STATUS, CANDIDATE_SOURCE
+from recruitment.models import Application, ApplicationStatusChange, Candidate, JobOpening
 
 from .choices import (
     CANDIDATE_HEADER_ALIASES,
@@ -54,7 +54,9 @@ def _select_worksheet(workbook):
 
 
 def _cell_value(row, mapping, field):
-    index = mapping[field]
+    index = mapping.get(field)
+    if index is None:
+        return None
     return row[index] if index < len(row) else None
 
 
@@ -65,6 +67,17 @@ def _normalize_name(value):
 
 def _normalize_status(value):
     return str(value or "").strip().lower().replace(" ", "_")
+
+
+def _normalize_source(value):
+    """Match a source by code or label; blank means "Excel import", unknown gives None."""
+    text = str(value or "").strip().lower()
+    if not text:
+        return "import"
+    for code, label in CANDIDATE_SOURCE:
+        if text in (code, label.lower(), code.replace("_", " ")):
+            return code
+    return None
 
 
 def _normalize_experience(value):
@@ -146,6 +159,7 @@ def candidate_import_preview(uploaded_file, *, user=None):
                     _cell_value(row, mapping, "years_of_experience")
                 ),
                 "status": _normalize_status(_cell_value(row, mapping, "status")),
+                "source": _normalize_source(_cell_value(row, mapping, "source")),
                 "errors": [],
             }
         )
@@ -160,6 +174,7 @@ def candidate_import_preview(uploaded_file, *, user=None):
     existing_keys = _existing_application_keys(company, emails)
     jobs_by_title = _open_jobs_by_title(company)
     valid_statuses = {value for value, _label in APPLICATION_STATUS}
+    source_labels = dict(CANDIDATE_SOURCE)
 
     for row in parsed_rows:
         if not row["full_name"]:
@@ -190,6 +205,9 @@ def candidate_import_preview(uploaded_file, *, user=None):
             row["errors"].append("Experience must be zero or a positive number.")
         if row["status"] not in valid_statuses:
             row["errors"].append("Status is not recognized.")
+        if row["source"] is None:
+            row["errors"].append("Source is not recognized.")
+        row["source_label"] = source_labels.get(row["source"], "")
 
         row["is_valid"] = not row["errors"]
 
@@ -234,7 +252,7 @@ def candidate_import_confirm(rows, *, user=None, assigned_recruiter=None):
                 email=row["email"],
                 phone=row["phone"],
                 years_of_experience=row["years_of_experience"],
-                source="import",
+                source=row["source"],
             )
             candidates_by_email[row["email"]] = candidate
             new_candidates.append(candidate)
@@ -251,6 +269,15 @@ def candidate_import_confirm(rows, *, user=None, assigned_recruiter=None):
 
     Candidate.objects.bulk_create(new_candidates)
     Application.objects.bulk_create(applications)
+    ApplicationStatusChange.objects.bulk_create(
+        ApplicationStatusChange(
+            application=application,
+            from_status="",
+            to_status=application.status,
+            changed_by=user if user and user.is_authenticated else None,
+        )
+        for application in applications
+    )
 
     return {
         "imported": len(applications),

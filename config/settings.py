@@ -136,6 +136,20 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Resumes are private: they live outside any public media/static root and are only
+# served through a view that checks the user's scope. Swap the "resumes" backend
+# (e.g. to S3) here without touching the model.
+PRIVATE_MEDIA_ROOT = BASE_DIR / "private_media"
+
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "resumes": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {"location": PRIVATE_MEDIA_ROOT},
+    },
+}
+
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'dashboard:home'
 LOGOUT_REDIRECT_URL = 'accounts:login'

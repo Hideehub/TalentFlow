@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from accounts.choices import ROLE_RECRUITER
 from accounts.decorators import user_has_role
@@ -9,10 +12,12 @@ from .forms import (
     ApplicationNoteForm,
     ApplicationStatusForm,
     CandidateForm,
+    InterviewFeedbackForm,
     InterviewForm,
     JobOpeningForm,
+    ResumeUploadForm,
 )
-from .models import Candidate
+from .models import ApplicationStatusChange, Candidate
 
 APPLICATION_PREFIX = "application"
 CANDIDATE_JUST_ADDED = (
@@ -25,6 +30,18 @@ def _find_candidate(company, email):
     if not email:
         return None
     return Candidate.objects.filter(company=company, email__iexact=email).first()
+
+
+def record_status_change(application, *, from_status, user=None):
+    """Log a status move. Every service that changes status goes through here."""
+    if application.status == from_status:
+        return None
+    return ApplicationStatusChange.objects.create(
+        application=application,
+        from_status=from_status,
+        to_status=application.status,
+        changed_by=user if user and user.is_authenticated else None,
+    )
 
 
 def _assign_creating_recruiter(application, user):
@@ -65,6 +82,7 @@ def candidate_create(*, data, user=None):
         application.candidate = candidate
         _assign_creating_recruiter(application, user)
         application.save()
+        record_status_change(application, from_status="", user=user)
         return candidate, existing is None, candidate_form, application_form
     return None, False, candidate_form, application_form
 
@@ -87,12 +105,15 @@ def application_create(*, candidate, data, user=None):
         application.candidate = candidate
         _assign_creating_recruiter(application, user)
         application.save()
+        record_status_change(application, from_status="", user=user)
         return application, form
     return None, form
 
 
 @transaction.atomic
 def application_update(*, application, data, user=None):
+    # Read before validation: is_valid() writes the posted values onto the instance.
+    from_status = application.status
     form = ApplicationForm(
         data=data,
         instance=application,
@@ -101,15 +122,20 @@ def application_update(*, application, data, user=None):
         candidate=application.candidate,
     )
     if form.is_valid():
-        return form.save(), form
+        application = form.save()
+        record_status_change(application, from_status=from_status, user=user)
+        return application, form
     return None, form
 
 
 @transaction.atomic
-def application_status_update(*, application, data):
+def application_status_update(*, application, data, user=None):
+    from_status = application.status
     form = ApplicationStatusForm(data=data, instance=application)
     if form.is_valid():
-        return form.save(), form
+        application = form.save()
+        record_status_change(application, from_status=from_status, user=user)
+        return application, form
     return None, form
 
 
@@ -154,4 +180,35 @@ def job_opening_update(*, job, data, user=None):
     form = JobOpeningForm(data=data, instance=job, user=user)
     if form.is_valid():
         return form.save(), form
+    return None, form
+
+
+@transaction.atomic
+def interview_feedback_submit(*, interview, data, user):
+    """Create the interviewer's feedback, or update it if they already gave some."""
+    existing = getattr(interview, "feedback", None)
+    form = InterviewFeedbackForm(data=data, instance=existing)
+    if form.is_valid():
+        feedback = form.save(commit=False)
+        feedback.interview = interview
+        feedback.author = user
+        feedback.save()
+        return feedback, form
+    return None, form
+
+
+@transaction.atomic
+def candidate_resume_upload(*, candidate, data, files):
+    form = ResumeUploadForm(data=data, files=files)
+    if form.is_valid():
+        uploaded = form.cleaned_data["resume"]
+        old_storage, old_name = candidate.resume.storage, candidate.resume.name
+        candidate.resume = uploaded
+        candidate.resume_original_name = Path(uploaded.name).name[:255]
+        candidate.resume_uploaded_at = timezone.now()
+        candidate.save(update_fields=["resume", "resume_original_name", "resume_uploaded_at", "updated_at"])
+        if old_name:
+            # Delete the replaced file only once the new one is committed.
+            transaction.on_commit(lambda: old_storage.delete(old_name))
+        return candidate, form
     return None, form

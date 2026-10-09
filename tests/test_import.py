@@ -14,10 +14,10 @@ pytestmark = pytest.mark.django_db
 HEADER = ["Applicant Name", "Email", "Phone", "Position", "Experience", "Stage"]
 
 
-def xlsx(*rows):
+def xlsx(*rows, header=HEADER):
     workbook = Workbook()
     sheet = workbook.active
-    sheet.append(HEADER)
+    sheet.append(header)
     for row in rows:
         sheet.append(list(row))
     buffer = BytesIO()
@@ -29,8 +29,8 @@ def xlsx(*rows):
     )
 
 
-def run_import(user, *rows, assigned_recruiter=None):
-    preview = candidate_import_preview(xlsx(*rows), user=user)
+def run_import(user, *rows, assigned_recruiter=None, header=HEADER):
+    preview = candidate_import_preview(xlsx(*rows, header=header), user=user)
     result = candidate_import_confirm(
         preview["rows"], user=user, assigned_recruiter=assigned_recruiter
     )
@@ -182,3 +182,50 @@ def test_import_through_views_assigns_the_recruiter(client, recruiter, job):
     assert response.status_code == 302
     assert response.url == reverse("recruitment:application_list")
     assert Application.objects.get().assigned_recruiter == recruiter
+
+
+# Optional Source column
+
+SOURCE_HEADER = [*HEADER, "Source"]
+
+
+def test_source_column_sets_new_candidates_source(hr_admin):
+    preview, _result = run_import(
+        hr_admin,
+        ("Ada", "ada@example.com", "0800", "Data Wizard", 3, "applied", "LinkedIn"),
+        ("Grace", "grace@example.com", "0800", "Data Wizard", 3, "applied", "job board"),
+        ("Alan", "alan@example.com", "0800", "Data Wizard", 3, "applied", ""),
+        header=SOURCE_HEADER,
+    )
+
+    assert [row["source_label"] for row in preview["rows"]] == ["LinkedIn", "Job board", "Excel import"]
+    assert dict(Candidate.objects.values_list("email", "source")) == {
+        "ada@example.com": "linkedin",
+        "grace@example.com": "job_board",
+        "alan@example.com": "import",
+    }
+
+
+def test_unknown_source_is_a_row_error(hr_admin):
+    preview, result = run_import(
+        hr_admin,
+        ("Ada", "ada@example.com", "0800", "Data Wizard", 3, "applied", "Carrier pigeon"),
+        header=SOURCE_HEADER,
+    )
+
+    assert "Source is not recognized." in preview["rows"][0]["errors"]
+    assert result["imported"] == 0
+
+
+def test_source_column_does_not_change_an_existing_person(hr_admin, company):
+    existing = CandidateFactory(company=company, email="ada@example.com", source="referral")
+
+    run_import(
+        hr_admin,
+        ("Ada", "ada@example.com", "0800", "Data Wizard", 3, "applied", "LinkedIn"),
+        header=SOURCE_HEADER,
+    )
+
+    existing.refresh_from_db()
+    assert existing.source == "referral"
+    assert existing.applications.count() == 1

@@ -9,7 +9,7 @@ from .selectors import (
     hardest_roles,
     upcoming_interviews,
 )
-from recruitment.selectors import dashboard_scope_label
+from recruitment.selectors import dashboard_scope_label, interviews_awaiting_feedback
 
 
 @role_required(*DASHBOARD_ROLES)
@@ -23,5 +23,6 @@ def dashboard_home_view(request):
             "hardest_roles": hardest_roles(request.user),
             "upcoming_interviews": upcoming_interviews(request.user),
             "scope_label": dashboard_scope_label(request.user),
+            "awaiting_feedback": interviews_awaiting_feedback(request.user),
         },
     )

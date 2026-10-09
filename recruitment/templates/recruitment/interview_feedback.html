@@ -1,0 +1,40 @@
+{% extends "recruitment/base.html" %}
+
+{% block title %}Interview feedback | TalentFlow{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="page-header d-flex align-items-center justify-content-between gap-3 mb-4">
+            <div>
+                <p class="section-kicker mb-1">Interview feedback</p>
+                <h1 class="page-title mb-1">{{ interview.title }}</h1>
+                <p class="text-secondary mb-0">
+                    {{ interview.application.candidate.full_name }} · {{ interview.application.position }} · {{ interview.scheduled_at }}
+                </p>
+            </div>
+            <a class="btn btn-soft" href="{% url 'recruitment:application_detail' interview.application_id %}">Back</a>
+        </div>
+
+        <form method="post" class="surface p-4">
+            {% csrf_token %}
+            <p class="text-secondary">Other interviewers' feedback becomes visible to you after you submit yours.</p>
+
+            {% for field in form %}
+                <div class="mb-3">
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+
+            <div class="d-flex justify-content-end gap-2">
+                <a class="btn btn-soft" href="{% url 'recruitment:application_detail' interview.application_id %}">Cancel</a>
+                <button class="btn btn-primary" type="submit">Save feedback</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
