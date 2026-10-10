@@ -2,13 +2,15 @@
 
 A multi-company applicant tracking system (ATS) built with Django and PostgreSQL. Each company gets a private hiring workspace where recruiters, hiring managers and HR admins manage jobs, candidates, applications, interviews and feedback.
 
-**Live demo:** _coming soon: https://your-app.onrender.com_
+**Live demo: [talentflow-ixq5.onrender.com](https://talentflow-ixq5.onrender.com)**
+
+_Hosted on a free tier: the first load can take up to a minute while the app wakes up._
 
 ![CI](https://github.com/Hideehub/TalentFlow/actions/workflows/ci.yml/badge.svg)
 
 ## Try the demo
 
-On the login page, use one of the one-click buttons. No password needed:
+Open the [login page](https://talentflow-ixq5.onrender.com/accounts/login/) and use one of the one-click buttons. No password needed:
 
 | Button | What you can see and do |
 | --- | --- |
@@ -117,8 +119,6 @@ The app is deployed on Render (`render.yaml`, `build.sh`) in the **Frankfurt** r
 - **Neon connection string:** use the **direct** one, not the pooled one. The app keeps database connections open (`conn_max_age`), which doesn't mix well with Neon's pooler.
 
 ## Screenshots
-
-_Placeholders: add images to `docs/screenshots/` and update the links._
 
 | Dashboard | Application with feedback and history |
 | --- | --- |
